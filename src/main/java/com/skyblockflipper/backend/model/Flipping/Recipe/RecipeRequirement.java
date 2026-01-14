@@ -1,16 +1,38 @@
 package com.skyblockflipper.backend.model.Flipping.Recipe;
 
+import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
 @Getter
+@Entity
+@Table(name = "recipe_requirements")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RecipeRequirement {
 
-    private final RecipeRequirementType type;
-    private final String stringValue;
-    private final Integer intValue;
-    private final Long longValue;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    private RecipeRequirementType type;
+
+    @Column(name = "string_value")
+    private String stringValue;
+
+    @Column(name = "int_value")
+    private Integer intValue;
+
+    @Column(name = "long_value")
+    private Long longValue;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "recipe_id", nullable = false)
+    private Recipe recipe;
 
     private RecipeRequirement(RecipeRequirementType type, String stringValue, Integer intValue, Long longValue) {
         this.type = Objects.requireNonNull(type, "type");
@@ -31,4 +53,7 @@ public class RecipeRequirement {
         return new RecipeRequirement(RecipeRequirementType.MIN_CAPITAL, null, null, coins);
     }
 
+    void setRecipe(Recipe recipe) {
+        this.recipe = recipe;
+    }
 }
