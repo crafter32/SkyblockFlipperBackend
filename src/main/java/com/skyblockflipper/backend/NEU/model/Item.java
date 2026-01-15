@@ -1,4 +1,4 @@
-package com.skyblockflipper.backend.NEU;
+package com.skyblockflipper.backend.NEU.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -16,6 +16,7 @@ import java.util.Map;
 @Builder(toBuilder = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class Item {
 
     @Id
