@@ -2,11 +2,7 @@ package com.skyblockflipper.backend.model.Flipping;
 
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Enums.StepType;
-import com.skyblockflipper.backend.model.Flipping.Recipe.Recipe;
-import com.skyblockflipper.backend.model.Flipping.Recipe.RecipeIngredient;
-import com.skyblockflipper.backend.model.Flipping.Recipe.RecipeProcessType;
-import com.skyblockflipper.backend.model.Flipping.Recipe.RecipeRequirement;
-import com.skyblockflipper.backend.model.Flipping.Recipe.RecipeToFlipMapper;
+import com.skyblockflipper.backend.model.Flipping.Recipe.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
