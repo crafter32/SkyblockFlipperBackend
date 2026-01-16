@@ -44,6 +44,12 @@ public class DataSourceHash {
         this.updatedAt = updatedAt;
     }
 
+    public DataSourceHash(String sourceKey, String hash) {
+        this.sourceKey = sourceKey;
+        this.hash = hash;
+        this.updatedAt = Instant.now();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

@@ -1,6 +1,9 @@
 package com.skyblockflipper.backend.NEU;
 
+import com.skyblockflipper.backend.model.DataSourceHash;
+import com.skyblockflipper.backend.repository.DataSourceHashRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
@@ -13,6 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.stream.Stream;
@@ -22,24 +29,88 @@ import java.util.stream.Stream;
 @Service
 public class NEUClient {
     private final Path itemsDir;
+    private final String repoUrl;
+    private final String branch;
+    @Autowired
+    private DataSourceHashRepository dataSourceHashRepository;
 
     public NEUClient(@Value("${config.NEU.repo-url}") String repoUrl,
                      @Value("${config.NEU.items-dir:NotEnoughUpdates-REPO/items}") String itemsDirValue,
-                     @Value("${config.NEU.branch:master}") String branch) throws IOException, InterruptedException {
+                     @Value("${config.NEU.branch:master}") String branch) {
         Path resolvedItemsDir = Paths.get(itemsDirValue);
         if (!resolvedItemsDir.isAbsolute()) {
             resolvedItemsDir = Paths.get(System.getProperty("user.dir")).resolve(resolvedItemsDir).normalize();
         }
         this.itemsDir = resolvedItemsDir;
+        this.repoUrl = repoUrl;
+        this.branch = branch;
         log.info("NEU items dir: {}", itemsDir.toAbsolutePath());
+    }
 
+    public synchronized boolean updateHash() throws IOException, InterruptedException {
+        fetchData();
+        var newHash = computeItemsHash(itemsDir);
+        var oldHash = dataSourceHashRepository.findBySourceKey("NEU-ITEMS");
+        if (Objects.equals(newHash.getHash(), oldHash.getHash())) return false;
+        oldHash.setHash(newHash.getHash());
+        oldHash.setUpdatedAt(Instant.now());
+        dataSourceHashRepository.save(oldHash);
+        return true;
+    }
+
+    public synchronized void fetchData() throws IOException, InterruptedException {
         if (Files.exists(itemsDir) && hasItemFiles(itemsDir)) {
             log.info("NEU items dir already exists, skipping download.");
             return;
         }
-
         Files.createDirectories(itemsDir);
         downloadAndExtractItems(repoUrl, branch, itemsDir);
+    }
+
+    private DataSourceHash computeItemsHash(Path dir) throws IOException {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+
+        try (Stream<Path> paths = Files.walk(dir)) {
+            paths.filter(path -> Files.isRegularFile(path)
+                            && path.getFileName().toString().endsWith(".json"))
+                    .map(dir::relativize)
+                    .map(Path::toString)
+                    .sorted()
+                    .forEachOrdered(relative -> {
+                        try {
+                            digest.update(relative.getBytes(StandardCharsets.UTF_8));
+                            Path filePath = dir.resolve(relative);
+                            try (InputStream input = Files.newInputStream(filePath)) {
+                                byte[] buffer = new byte[8192];
+                                int read;
+                                while ((read = input.read(buffer)) != -1) {
+                                    digest.update(buffer, 0, read);
+                                }
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof IOException io) {
+                throw io;
+            }
+            throw e;
+        }
+        return new DataSourceHash("NEU-ITEMS", toHex(digest.digest()));
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private boolean hasItemFiles(Path dir) throws IOException {

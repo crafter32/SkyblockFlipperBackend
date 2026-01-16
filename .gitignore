@@ -37,4 +37,5 @@ build/
 ### Local config ###
 /src/main/resources/application-local.yml
 
-###
+### err file ###
+err.txt
