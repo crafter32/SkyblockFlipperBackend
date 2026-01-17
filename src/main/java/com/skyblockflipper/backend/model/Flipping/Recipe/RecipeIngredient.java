@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.model.Flipping.Recipe;
 
+import com.skyblockflipper.backend.NEU.model.Item;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,7 +18,7 @@ public class RecipeIngredient {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "item_id", nullable = false)
+    @Column(name = "item_internal_name", nullable = false)
     private String itemId;
 
     @Column(name = "amount", nullable = false)
@@ -28,7 +29,7 @@ public class RecipeIngredient {
     private Recipe recipe;
 
     public RecipeIngredient(String itemId, int amount) {
-        this.itemId = Objects.requireNonNull(itemId, "itemId");
+        this.itemId = Objects.requireNonNull(itemId);
         this.amount = amount;
     }
 

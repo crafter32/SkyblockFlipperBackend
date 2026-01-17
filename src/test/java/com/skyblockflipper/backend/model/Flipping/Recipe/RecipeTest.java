@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.model.Flipping.Recipe;
 
+import com.skyblockflipper.backend.NEU.model.Item;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,7 +12,7 @@ class RecipeTest {
 
     @Test
     void setIngredientsWiresBackReference() {
-        Recipe recipe = new Recipe("r1", "out", RecipeProcessType.CRAFT, 5L, List.of(), List.of());
+        Recipe recipe = new Recipe("r1", item("out"), RecipeProcessType.CRAFT, 5L, List.of());
         RecipeIngredient ingredient = new RecipeIngredient("item", 2);
 
         recipe.setIngredients(List.of(ingredient));
@@ -21,15 +22,7 @@ class RecipeTest {
         assertNull(ingredient.getRecipe());
     }
 
-    @Test
-    void setRequirementsWiresBackReference() {
-        Recipe recipe = new Recipe("r1", "out", RecipeProcessType.FORGE, 5L, List.of(), List.of());
-        RecipeRequirement requirement = RecipeRequirement.minCapital(100L);
-
-        recipe.setRequirements(List.of(requirement));
-
-        assertEquals(recipe, requirement.getRecipe());
-        recipe.removeRequirement(requirement);
-        assertNull(requirement.getRecipe());
+    private Item item(String id) {
+        return Item.builder().id(id).displayName("name").build();
     }
 }

@@ -1,6 +1,5 @@
 package com.skyblockflipper.backend.model.Flipping.Recipe;
 
-import com.skyblockflipper.backend.model.Flipping.Constraint;
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Flip;
 import com.skyblockflipper.backend.model.Flipping.Step;
@@ -21,15 +20,7 @@ public class RecipeToFlipMapper {
 
         steps.add(buildProcessStep(recipe));
 
-        List<Constraint> constraints = new ArrayList<>();
-        for (RecipeRequirement requirement : recipe.getRequirements()) {
-            Constraint constraint = mapConstraint(requirement);
-            if (constraint != null) {
-                constraints.add(constraint);
-            }
-        }
-
-        return new Flip(UUID.randomUUID(), mapFlipType(recipe.getProcessType()), steps, recipe.getOutputItemId(), constraints);
+        return new Flip(UUID.randomUUID(), mapFlipType(recipe.getProcessType()), steps, recipe.getOutputItem().getId(), List.of());
     }
 
     private Step buildProcessStep(Recipe recipe) {
@@ -42,14 +33,6 @@ public class RecipeToFlipMapper {
 
     private FlipType mapFlipType(RecipeProcessType processType) {
         return processType == RecipeProcessType.FORGE ? FlipType.FORGE : FlipType.CRAFTING;
-    }
-
-    private Constraint mapConstraint(RecipeRequirement requirement) {
-        return switch (requirement.getType()) {
-            case MIN_FORGE_SLOTS -> Constraint.minForgeSlots(requirement.getIntValue() == null ? 0 : requirement.getIntValue());
-            case RECIPE_UNLOCKED -> Constraint.recipeUnlocked(requirement.getStringValue());
-            case MIN_CAPITAL -> Constraint.minCapital(requirement.getLongValue() == null ? 0L : requirement.getLongValue());
-        };
     }
 
     private String buildParamsJson(RecipeIngredient ingredient) {

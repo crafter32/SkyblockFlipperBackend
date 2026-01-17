@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.model.Flipping;
 
+import com.skyblockflipper.backend.NEU.model.Item;
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Enums.StepType;
 import com.skyblockflipper.backend.model.Flipping.Recipe.*;
@@ -16,16 +17,12 @@ class RecipeToFlipMapperTest {
     void mapsForgeRecipeToFlipWithConstraints() {
         Recipe recipe = new Recipe(
                 "forge_recipe_1",
-                "REFINED_DIAMOND",
+                item("REFINED_DIAMOND"),
                 RecipeProcessType.FORGE,
                 3600L,
                 List.of(
                         new RecipeIngredient("DIAMOND", 160),
                         new RecipeIngredient("COAL", 1)
-                ),
-                List.of(
-                        RecipeRequirement.minForgeSlots(2),
-                        RecipeRequirement.recipeUnlocked("FORGE_REFINED_DIAMOND")
                 )
         );
 
@@ -36,7 +33,10 @@ class RecipeToFlipMapperTest {
         assertEquals("REFINED_DIAMOND", flip.getResultItemId());
         assertEquals(3, flip.getSteps().size());
         assertEquals(StepType.FORGE, flip.getSteps().getLast().getType());
-        assertTrue(flip.requiresForgeSlot());
-        assertEquals(2, flip.getConstraints().size());
+        assertTrue(flip.getConstraints().isEmpty());
+    }
+
+    private Item item(String id) {
+        return Item.builder().id(id).displayName("name").build();
     }
 }

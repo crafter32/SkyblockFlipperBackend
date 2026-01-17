@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class ItemTest {
 
     @Test
-    void builderDefaultsHaveMaps() {
-        Item item = Item.builder().id("id").name("name").build();
+    void builderDefaultsHaveCollections() {
+        Item item = Item.builder().id("id").displayName("name").build();
 
-        assertNotNull(item.getStats());
-        assertNotNull(item.getMetadata());
+        assertNotNull(item.getInfoLinks());
+        assertNotNull(item.getRecipes());
     }
 }

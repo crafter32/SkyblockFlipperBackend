@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.model.Flipping.Recipe;
 
+import com.skyblockflipper.backend.NEU.model.Item;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,8 +20,9 @@ public class Recipe {
     @Column(name = "recipe_id", nullable = false, updatable = false)
     private String recipeId;
 
-    @Column(name = "output_item_id", nullable = false)
-    private String outputItemId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "output_item_id", nullable = false)
+    private Item outputItem;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "process_type", nullable = false)
@@ -32,22 +34,18 @@ public class Recipe {
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RecipeIngredient> ingredients = new ArrayList<>();
 
-    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<RecipeRequirement> requirements = new ArrayList<>();
-
-    public Recipe(String recipeId, String outputItemId, RecipeProcessType processType, long processDurationSeconds,
-                  List<RecipeIngredient> ingredients, List<RecipeRequirement> requirements) {
+    public Recipe(String recipeId, Item outputItem, RecipeProcessType processType, long processDurationSeconds,
+                  List<RecipeIngredient> ingredients) {
         this.recipeId = Objects.requireNonNull(recipeId, "recipeId");
-        updateFrom(outputItemId, processType, processDurationSeconds, ingredients, requirements);
+        updateFrom(outputItem, processType, processDurationSeconds, ingredients);
     }
 
-    public void updateFrom(String outputItemId, RecipeProcessType processType, long processDurationSeconds,
-                           List<RecipeIngredient> ingredients, List<RecipeRequirement> requirements) {
-        this.outputItemId = Objects.requireNonNull(outputItemId, "outputItemId");
+    public void updateFrom(Item outputItem, RecipeProcessType processType, long processDurationSeconds,
+                           List<RecipeIngredient> ingredients) {
+        this.outputItem = Objects.requireNonNull(outputItem, "outputItem");
         this.processType = Objects.requireNonNull(processType, "processType");
         this.processDurationSeconds = processDurationSeconds;
         setIngredients(ingredients);
-        setRequirements(requirements);
     }
 
     public void setIngredients(List<RecipeIngredient> newIngredients) {
@@ -69,32 +67,8 @@ public class Recipe {
         }
     }
 
-    public void setRequirements(List<RecipeRequirement> newRequirements) {
-        clearRequirements();
-        if (newRequirements != null) {
-            newRequirements.forEach(this::addRequirement);
-        }
-    }
-
-    public void addRequirement(RecipeRequirement requirement) {
-        Objects.requireNonNull(requirement, "requirement");
-        requirement.setRecipe(this);
-        this.requirements.add(requirement);
-    }
-
-    public void removeRequirement(RecipeRequirement requirement) {
-        if (requirement != null && this.requirements.remove(requirement)) {
-            requirement.setRecipe(null);
-        }
-    }
-
     private void clearIngredients() {
         this.ingredients.forEach(ingredient -> ingredient.setRecipe(null));
         this.ingredients.clear();
-    }
-
-    private void clearRequirements() {
-        this.requirements.forEach(requirement -> requirement.setRecipe(null));
-        this.requirements.clear();
     }
 }
