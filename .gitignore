@@ -37,5 +37,8 @@ build/
 ### Local config ###
 /src/main/resources/application-local.yml
 
-### err file ###
+### Local Resources ###
 err.txt
+NotEnoughUpdates-REPO
+ITEM_FILTERS.md
+NEU_ITEM_DOCS.md
