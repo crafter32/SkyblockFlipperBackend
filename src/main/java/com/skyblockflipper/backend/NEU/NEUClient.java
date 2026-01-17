@@ -39,6 +39,7 @@ public class NEUClient {
     private final String repoUrl;
     private final String branch;
     private final long refreshDays;
+    private final NEUItemFilterHandler itemFilterHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
     @Autowired
     private DataSourceHashRepository dataSourceHashRepository;
@@ -46,7 +47,8 @@ public class NEUClient {
     public NEUClient(@Value("${config.NEU.repo-url}") String repoUrl,
                      @Value("${config.NEU.items-dir:NotEnoughUpdates-REPO/items}") String itemsDirValue,
                      @Value("${config.NEU.branch:master}") String branch,
-                     @Value("${config.NEU.refresh-days:1}") long refreshDays) {
+                     @Value("${config.NEU.refresh-days:1}") long refreshDays,
+                     NEUItemFilterHandler itemFilterHandler) {
         Path resolvedItemsDir = Paths.get(itemsDirValue);
         if (!resolvedItemsDir.isAbsolute()) {
             resolvedItemsDir = Paths.get(System.getProperty("user.dir")).resolve(resolvedItemsDir).normalize();
@@ -55,6 +57,7 @@ public class NEUClient {
         this.repoUrl = repoUrl;
         this.branch = branch;
         this.refreshDays = refreshDays;
+        this.itemFilterHandler = itemFilterHandler;
         log.info("NEU items dir: {}", itemsDir.toAbsolutePath());
     }
 
@@ -139,7 +142,7 @@ public class NEUClient {
                 items.add(objectMapper.readTree(input));
             }
         }
-        return items;
+        return itemFilterHandler.filter(items);
     }
 
     private DataSourceHash computeItemsHash(Path dir) throws IOException {

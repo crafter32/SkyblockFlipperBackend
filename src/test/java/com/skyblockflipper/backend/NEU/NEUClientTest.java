@@ -152,7 +152,7 @@ class NEUClientTest {
     @Test
     void isRefreshDueRespectsZeroRefreshWindow() {
         NEUClient zeroRefreshClient = new NEUClient("https://github.com/owner/repo",
-                tempDir.toString(), "main", 0);
+                tempDir.toString(), "main", 0, new NEUItemFilterHandler());
         Boolean due = ReflectionTestUtils.invokeMethod(zeroRefreshClient, "isRefreshDue",
                 Instant.now(), Instant.now());
 
@@ -163,8 +163,10 @@ class NEUClientTest {
     private Path createItemsDir() throws IOException {
         Path itemsDir = tempDir.resolve("items");
         Files.createDirectories(itemsDir.resolve("nested"));
-        Files.writeString(itemsDir.resolve("nested").resolve("a.json"), "{\"id\":\"a\"}");
-        Files.writeString(itemsDir.resolve("b.json"), "{\"id\":\"b\"}");
+        Files.writeString(itemsDir.resolve("nested").resolve("a.json"),
+                "{\"id\":\"a\",\"recipe\":{\"A1\":\"ITEM:1\"}}");
+        Files.writeString(itemsDir.resolve("b.json"),
+                "{\"id\":\"b\",\"recipes\":[{\"type\":\"forge\"}]}");
         return itemsDir;
     }
 
