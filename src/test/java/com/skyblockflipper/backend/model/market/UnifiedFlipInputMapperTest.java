@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.model.market;
 
+import com.skyblockflipper.backend.service.flipping.UnifiedFlipInputMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

@@ -1,5 +1,9 @@
-package com.skyblockflipper.backend.model.market;
+package com.skyblockflipper.backend.service.flipping;
 
+import com.skyblockflipper.backend.model.market.AuctionMarketRecord;
+import com.skyblockflipper.backend.model.market.BazaarMarketRecord;
+import com.skyblockflipper.backend.model.market.MarketSnapshot;
+import com.skyblockflipper.backend.model.market.UnifiedFlipInputSnapshot;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
