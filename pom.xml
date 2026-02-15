@@ -31,6 +31,7 @@
 		<maven.compiler.source>21</maven.compiler.source>
 		<maven.compiler.target>21</maven.compiler.target>
 		<assertj.version>3.27.7</assertj.version>
+		<logback.version>1.5.25</logback.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -67,6 +68,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+		  <groupId>ch.qos.logback</groupId>
+		  <artifactId>logback-core</artifactId>
+		  <version>${logback.version}</version>
 		</dependency>
 		
 		<dependency>
