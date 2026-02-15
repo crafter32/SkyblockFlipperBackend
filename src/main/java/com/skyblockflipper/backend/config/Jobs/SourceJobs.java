@@ -5,6 +5,7 @@ import com.skyblockflipper.backend.NEU.NEUItemMapper;
 import com.skyblockflipper.backend.NEU.repository.ItemRepository;
 import com.skyblockflipper.backend.service.market.MarketDataProcessingService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -38,7 +39,7 @@ public class SourceJobs {
         try {
             marketDataProcessingService.captureCurrentSnapshotAndPrepareInput();
         } catch (Exception e) {
-            log.warn("Failed to poll and persist market snapshot: {}", e.getMessage());
+            log.warn("Failed to poll and persist market snapshot: {}", ExceptionUtils.getStackTrace(e));
         }
     }
 

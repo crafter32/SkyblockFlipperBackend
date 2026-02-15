@@ -31,11 +31,12 @@ public class UnifiedFlipInputMapper {
             return Map.of();
         }
         Map<String, UnifiedFlipInputSnapshot.BazaarQuote> quotes = new LinkedHashMap<>();
-        for (BazaarMarketRecord record : bazaarProducts.values()) {
+        for (Map.Entry<String, BazaarMarketRecord> entry : bazaarProducts.entrySet()) {
+            BazaarMarketRecord record = entry.getValue();
             if (record == null || record.productId() == null || record.productId().isBlank()) {
                 continue;
             }
-            quotes.put(record.productId(), new UnifiedFlipInputSnapshot.BazaarQuote(
+            quotes.put(entry.getKey(), new UnifiedFlipInputSnapshot.BazaarQuote(
                     record.buyPrice(),
                     record.sellPrice(),
                     record.buyVolume(),

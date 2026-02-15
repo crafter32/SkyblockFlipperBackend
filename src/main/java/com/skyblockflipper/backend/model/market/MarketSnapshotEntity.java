@@ -5,7 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,7 +14,13 @@ import java.util.UUID;
 
 @Getter
 @Entity
-@Table(name = "market_snapshot")
+@Table(
+        name = "market_snapshot",
+        indexes = @Index(
+                name = "idx_market_snapshot_snapshot_ts_epoch_millis",
+                columnList = "snapshot_timestamp_epoch_millis"
+        )
+)
 public class MarketSnapshotEntity {
 
     @Id
@@ -34,12 +40,10 @@ public class MarketSnapshotEntity {
     private int bazaarProductCount;
 
     @Setter
-    @Lob
     @Column(name = "auctions_json", nullable = false, columnDefinition = "text")
     private String auctionsJson;
 
     @Setter
-    @Lob
     @Column(name = "bazaar_products_json", nullable = false, columnDefinition = "text")
     private String bazaarProductsJson;
 

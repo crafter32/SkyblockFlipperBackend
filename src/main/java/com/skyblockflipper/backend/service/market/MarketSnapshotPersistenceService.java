@@ -6,6 +6,7 @@ import com.skyblockflipper.backend.model.market.MarketSnapshot;
 import com.skyblockflipper.backend.model.market.MarketSnapshotEntity;
 import com.skyblockflipper.backend.repository.MarketSnapshotRepository;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -39,7 +40,7 @@ public class MarketSnapshotPersistenceService {
             );
             MarketSnapshotEntity saved = marketSnapshotRepository.save(entity);
             return toDomain(saved);
-        } catch (Exception e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize market snapshot for persistence.", e);
         }
     }
@@ -62,7 +63,7 @@ public class MarketSnapshotPersistenceService {
             List<AuctionMarketRecord> auctions = objectMapper.readValue(entity.getAuctionsJson(), AUCTIONS_TYPE);
             Map<String, BazaarMarketRecord> bazaar = objectMapper.readValue(entity.getBazaarProductsJson(), BAZAAR_TYPE);
             return new MarketSnapshot(Instant.ofEpochMilli(entity.getSnapshotTimestampEpochMillis()), auctions, bazaar);
-        } catch (Exception e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to deserialize market snapshot from persistence.", e);
         }
     }
