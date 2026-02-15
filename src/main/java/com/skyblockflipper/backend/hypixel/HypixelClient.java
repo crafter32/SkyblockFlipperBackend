@@ -43,13 +43,19 @@ public class HypixelClient {
     public List<Auction> fetchAllAuctions() {
         AuctionResponse firstPage = fetchAuctionPage(0);
         if (firstPage == null) {
-            return List.of();
+            throw new IllegalStateException("Failed to fetch auctions page 0 from Hypixel API.");
         }
 
-        List<Auction> allAuctions = new ArrayList<>(firstPage.getAuctions());
+        List<Auction> allAuctions = new ArrayList<>();
+        if (firstPage.getAuctions() != null) {
+            allAuctions.addAll(firstPage.getAuctions());
+        }
         for (int page = 1; page < firstPage.getTotalPages(); page++) {
             AuctionResponse nextPage = fetchAuctionPage(page);
-            if (nextPage != null) {
+            if (nextPage == null) {
+                throw new IllegalStateException("Failed to fetch auctions page " + page + " from Hypixel API.");
+            }
+            if (nextPage.getAuctions() != null) {
                 allAuctions.addAll(nextPage.getAuctions());
             }
         }

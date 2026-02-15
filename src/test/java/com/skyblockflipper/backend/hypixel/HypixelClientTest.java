@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
@@ -97,6 +98,34 @@ class HypixelClientTest {
         assertEquals(2, auctions.size());
         verify(restClient.get(), atLeastOnce()).uri("/skyblock/auctions?page=0");
         verify(restClient.get(), atLeastOnce()).uri("/skyblock/auctions?page=1");
+    }
+
+    @Test
+    void fetchAllAuctionsThrowsWhenFirstPageFails() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(null);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        assertThrows(IllegalStateException.class, client::fetchAllAuctions);
+    }
+
+    @Test
+    void fetchAllAuctionsThrowsWhenFollowUpPageFails() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+
+        Auction auction = new Auction("uuid1", "a1", "p1", List.of(), 1L, 2L, "item1", "lore1", "e1", "c1", "COMMON", 100L, true, List.of(), 100L, List.of());
+        AuctionResponse page0 = new AuctionResponse(true, 0, 2, 2, 3L, List.of(auction));
+
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(page0, (Object) null);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        assertThrows(IllegalStateException.class, client::fetchAllAuctions);
     }
 
     @Test
