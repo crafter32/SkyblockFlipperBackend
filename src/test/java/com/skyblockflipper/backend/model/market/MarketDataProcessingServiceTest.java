@@ -7,7 +7,6 @@ import com.skyblockflipper.backend.hypixel.model.AuctionResponse;
 import com.skyblockflipper.backend.hypixel.model.BazaarProduct;
 import com.skyblockflipper.backend.hypixel.model.BazaarQuickStatus;
 import com.skyblockflipper.backend.hypixel.model.BazaarResponse;
-import com.skyblockflipper.backend.model.market.MarketSnapshot;
 import com.skyblockflipper.backend.service.flipping.UnifiedFlipInputMapper;
 import com.skyblockflipper.backend.service.market.MarketDataProcessingService;
 import com.skyblockflipper.backend.service.market.MarketSnapshotPersistenceService;
@@ -42,7 +41,7 @@ class MarketDataProcessingServiceTest {
         BazaarProduct bazaarProduct = new BazaarProduct("ENCHANTED_DIAMOND", quickStatus, List.of(), List.of());
         BazaarResponse bazaarResponse = new BazaarResponse(true, 11_000L, Map.of("ENCHANTED_DIAMOND", bazaarProduct));
 
-        when(client.fetchAuctionPage(0)).thenReturn(auctionResponse);
+        when(client.fetchAllAuctionPages()).thenReturn(auctionResponse);
         when(client.fetchBazaar()).thenReturn(bazaarResponse);
         when(persistenceService.save(org.mockito.ArgumentMatchers.any(MarketSnapshot.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -63,7 +62,7 @@ class MarketDataProcessingServiceTest {
         UnifiedFlipInputMapper inputMapper = new UnifiedFlipInputMapper();
         MarketDataProcessingService service = new MarketDataProcessingService(client, snapshotMapper, persistenceService, inputMapper);
 
-        when(client.fetchAuctionPage(0)).thenReturn(null);
+        when(client.fetchAllAuctionPages()).thenReturn(null);
         when(client.fetchBazaar()).thenReturn(null);
 
         assertTrue(service.captureCurrentSnapshotAndPrepareInput().isEmpty());

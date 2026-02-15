@@ -30,7 +30,7 @@ public class MarketDataProcessingService {
     }
 
     public Optional<UnifiedFlipInputSnapshot> captureCurrentSnapshotAndPrepareInput() {
-        AuctionResponse auctionResponse = hypixelClient.fetchAuctionPage(0);
+        AuctionResponse auctionResponse = hypixelClient.fetchAllAuctionPages();
         BazaarResponse bazaarResponse = hypixelClient.fetchBazaar();
         if (auctionResponse == null && bazaarResponse == null) {
             return Optional.empty();
