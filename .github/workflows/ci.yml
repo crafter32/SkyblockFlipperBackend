@@ -39,7 +39,6 @@ jobs:
 
   qodana:
     name: Qodana
-    if: ${{ secrets.QODANA_TOKEN_96985827 != '' }}
     needs: build_test
     runs-on: ubuntu-latest
     permissions:
