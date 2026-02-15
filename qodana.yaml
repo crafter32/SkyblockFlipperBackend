@@ -8,4 +8,8 @@ profile:
   name: qodana.recommended
 include:
   - name: CheckDependencyLicenses
+exclude:
   - name: JvmCoverageInspection
+failureConditions:
+  testCoverageThresholds:
+    total: 75
