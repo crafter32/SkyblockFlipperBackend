@@ -2,18 +2,26 @@ package com.skyblockflipper.backend.hypixel;
 
 import com.skyblockflipper.backend.hypixel.model.Auction;
 import com.skyblockflipper.backend.hypixel.model.AuctionResponse;
+import com.skyblockflipper.backend.hypixel.model.BazaarProduct;
+import com.skyblockflipper.backend.hypixel.model.BazaarQuickStatus;
+import com.skyblockflipper.backend.hypixel.model.BazaarResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,7 +33,7 @@ class HypixelClientTest {
         when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
                 .thenReturn(null);
 
-        HypixelClient client = new HypixelClient("http://localhost");
+        HypixelClient client = new HypixelClient("http://localhost", "");
         ReflectionTestUtils.setField(client, "restClient", restClient);
 
         client.fetchAuctions();
@@ -36,6 +44,19 @@ class HypixelClientTest {
     @Test
     void fetchAuctionsHandlesSuccess() {
         RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+        AuctionResponse response = getAuctionResponse();
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(response);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        client.fetchAuctions();
+
+        verify(restClient, atLeastOnce()).get();
+    }
+
+    private static AuctionResponse getAuctionResponse() {
         Auction auction = new Auction(
                 "uuid",
                 "auctioneer",
@@ -54,15 +75,111 @@ class HypixelClientTest {
                 150L,
                 List.of()
         );
-        AuctionResponse response = new AuctionResponse(true, 0, 1, 1, 3L, List.of(auction));
+        return new AuctionResponse(true, 0, 1, 1, 3L, List.of(auction));
+    }
+
+    @Test
+    void fetchAllAuctionsLoadsAllPages() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+
+        Auction auction1 = new Auction("uuid1", "a1", "p1", List.of(), 1L, 2L, "item1", "lore1", "e1", "c1", "COMMON", 100L, true, List.of(), 100L, List.of());
+        Auction auction2 = new Auction("uuid2", "a2", "p2", List.of(), 1L, 2L, "item2", "lore2", "e2", "c2", "RARE", 200L, true, List.of(), 200L, List.of());
+        AuctionResponse page0 = new AuctionResponse(true, 0, 2, 2, 3L, List.of(auction1));
+        AuctionResponse page1 = new AuctionResponse(true, 1, 2, 2, 4L, List.of(auction2));
+
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(page0, page1);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        List<Auction> auctions = client.fetchAllAuctions();
+
+        assertEquals(2, auctions.size());
+        verify(restClient.get(), atLeastOnce()).uri("/skyblock/auctions?page=0");
+        verify(restClient.get(), atLeastOnce()).uri("/skyblock/auctions?page=1");
+    }
+
+    @Test
+    void fetchAllAuctionsThrowsWhenFirstPageFails() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(null);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        assertThrows(IllegalStateException.class, client::fetchAllAuctions);
+    }
+
+    @Test
+    void fetchAllAuctionsThrowsWhenFollowUpPageFails() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+
+        Auction auction = new Auction("uuid1", "a1", "p1", List.of(), 1L, 2L, "item1", "lore1", "e1", "c1", "COMMON", 100L, true, List.of(), 100L, List.of());
+        AuctionResponse page0 = new AuctionResponse(true, 0, 2, 2, 3L, List.of(auction));
+
+        when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
+                .thenReturn(page0, (Object) null);
+
+        HypixelClient client = new HypixelClient("http://localhost", "");
+        ReflectionTestUtils.setField(client, "restClient", restClient);
+
+        assertThrows(IllegalStateException.class, client::fetchAllAuctions);
+    }
+
+    @Test
+    void fetchBazaarReturnsProducts() {
+        RestClient restClient = mock(RestClient.class, Answers.RETURNS_DEEP_STUBS);
+
+        BazaarQuickStatus quickStatus = new BazaarQuickStatus(10.0, 9.5, 1000, 900, 10000, 9000, 100, 90);
+        BazaarProduct product = new BazaarProduct("ENCHANTED_DIAMOND", quickStatus, List.of(), List.of());
+        BazaarResponse response = new BazaarResponse(true, 5L, Map.of("ENCHANTED_DIAMOND", product));
+
         when(restClient.get().uri(anyString()).retrieve().body(any(ParameterizedTypeReference.class)))
                 .thenReturn(response);
 
-        HypixelClient client = new HypixelClient("http://localhost");
+        HypixelClient client = new HypixelClient("http://localhost", "");
         ReflectionTestUtils.setField(client, "restClient", restClient);
 
-        client.fetchAuctions();
+        BazaarResponse bazaar = client.fetchBazaar();
 
-        verify(restClient, atLeastOnce()).get();
+        assertNotNull(bazaar);
+        assertEquals(1, bazaar.getProducts().size());
+        verify(restClient.get(), atLeastOnce()).uri("/skyblock/bazaar");
+    }
+
+    @Test
+    void bazaarResponseDeserializesSnakeCaseFields() {
+        String json = """
+                {
+                  "success": true,
+                  "lastUpdated": 123,
+                  "products": {
+                    "ENCHANTED_DIAMOND": {
+                      "product_id": "ENCHANTED_DIAMOND",
+                      "quick_status": {
+                        "buyPrice": 10.0,
+                        "sellPrice": 9.5,
+                        "buyVolume": 1000,
+                        "sellVolume": 900,
+                        "buyMovingWeek": 10000,
+                        "sellMovingWeek": 9000,
+                        "buyOrders": 7,
+                        "sellOrders": 6
+                      }
+                    }
+                  }
+                }
+                """;
+
+        BazaarResponse bazaar = new ObjectMapper().readValue(json, BazaarResponse.class);
+        BazaarProduct product = bazaar.getProducts().get("ENCHANTED_DIAMOND");
+
+        assertNotNull(product);
+        assertEquals("ENCHANTED_DIAMOND", product.getProductId());
+        assertNotNull(product.getQuickStatus());
+        assertEquals(7, product.getQuickStatus().getBuyOrders());
+        assertEquals(6, product.getQuickStatus().getSellOrders());
     }
 }
