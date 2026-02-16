@@ -4,5 +4,6 @@ public enum FlipType {
     BAZAAR,
     CRAFTING,
     FORGE,
+    KATGRADE,
     FUSION
 }

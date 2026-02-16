@@ -47,7 +47,7 @@ class NEUItemMapperTest {
         assertEquals(1, item.getRecipes().size());
 
         Recipe recipe = item.getRecipes().getFirst();
-        assertEquals(RecipeProcessType.CRAFT, recipe.getProcessType());
+        assertEquals(RecipeProcessType.KATGRADE, recipe.getProcessType());
         assertEquals(3600, recipe.getProcessDurationSeconds());
 
         Map<String, Integer> ingredientCounts = toCounts(recipe);

@@ -28,11 +28,16 @@ public class RecipeToFlipMapper {
         return switch (recipe.getProcessType()) {
             case FORGE -> Step.forForgeFixed(durationSeconds);
             case CRAFT -> Step.forCraftInstant(durationSeconds);
+            case KATGRADE -> Step.forWaitFixed(durationSeconds);
         };
     }
 
     private FlipType mapFlipType(RecipeProcessType processType) {
-        return processType == RecipeProcessType.FORGE ? FlipType.FORGE : FlipType.CRAFTING;
+        return switch (processType) {
+            case FORGE -> FlipType.FORGE;
+            case KATGRADE -> FlipType.KATGRADE;
+            case CRAFT -> FlipType.CRAFTING;
+        };
     }
 
     private String buildParamsJson(RecipeIngredient ingredient) {

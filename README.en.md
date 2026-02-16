@@ -78,6 +78,7 @@ Currently implemented in this repository:
 - **Bazaar** (`BAZAAR`)
 - **Crafting** (`CRAFTING`)
 - **Forge** (`FORGE`)
+- **Katgrade** (`KATGRADE`)
 - **Fusion** (`FUSION`)
 
 ### Target Coverage (Roadmap)
@@ -85,6 +86,7 @@ Currently implemented in this repository:
 - Bazaar flips
 - Craft flips
 - Forge flips
+- Katgrade flips
 - Shard flips
 - Fusion flips
 
@@ -120,11 +122,13 @@ Short example:
 Not exposed publicly yet:
 - Bazaar data (currently available internally via `HypixelClient#fetchBazaar()`).
 - Full flip read API (`/api/v1/flips`, `/api/v1/items`, `/api/v1/recipes`, ...).
+- NPC-shop offer data (`type: npc_shop`) for "buyable from NPC" visibility.
 
 ### Planned v1 endpoints
 - `GET /api/v1/flips` (filtering/sorting/pagination)
 - `GET /api/v1/flips/{id}` (detail view)
 - `GET /api/v1/items` (NEU-backed item metadata)
+- `GET /api/v1/items/npc-buyable` (NPC-buyable offers, optional `itemId` filter)
 - `GET /api/v1/recipes` (craft/forge recipes)
 - `GET /api/v1/snapshots`
 - `GET /api/v1/snapshots/{timestamp}/flips`
@@ -180,6 +184,7 @@ Service will then be available via `docker-compose.yml` on port `8080`.
 ### P0 - Critical
 - Unified flip DTO and stable read API (`/api/v1/flips`, `/api/v1/flips/{id}`)
 - End-to-end pipeline per flip type (ingest -> compute -> persist -> serve)
+- Katgrade as its own flip type (not merged into generic crafting)
 - Consistent profit/fee computation
 
 ### P1 - Important

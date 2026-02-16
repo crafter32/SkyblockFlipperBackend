@@ -89,7 +89,7 @@ public class Flip {
     }
 
     private boolean isActiveStep(Step step) {
-        return step.getType() != StepType.FORGE;
+        return step.getType() != StepType.FORGE && step.getType() != StepType.WAIT;
     }
 
     private Duration sumDurationSeconds(List<Step> steps) {

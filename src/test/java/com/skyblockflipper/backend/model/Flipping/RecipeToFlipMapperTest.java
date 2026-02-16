@@ -39,4 +39,26 @@ class RecipeToFlipMapperTest {
     private Item item(String id) {
         return Item.builder().id(id).displayName("name").build();
     }
+
+    @Test
+    void mapsKatgradeRecipeToKatgradeFlipWithWaitStep() {
+        Recipe recipe = new Recipe(
+                "kat_recipe_1",
+                item("ARMADILLO;5"),
+                RecipeProcessType.KATGRADE,
+                3600L,
+                List.of(
+                        new RecipeIngredient("ARMADILLO;4", 1),
+                        new RecipeIngredient("FROZEN_SCUTE", 1)
+                )
+        );
+
+        RecipeToFlipMapper mapper = new RecipeToFlipMapper();
+        Flip flip = mapper.fromRecipe(recipe);
+
+        assertEquals(FlipType.KATGRADE, flip.getFlipType());
+        assertEquals("ARMADILLO;5", flip.getResultItemId());
+        assertEquals(3, flip.getSteps().size());
+        assertEquals(StepType.WAIT, flip.getSteps().getLast().getType());
+    }
 }
