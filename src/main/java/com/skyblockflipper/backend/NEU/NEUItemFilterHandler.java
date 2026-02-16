@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Component
@@ -33,7 +34,7 @@ public class NEUItemFilterHandler {
         JsonNode recipes = node.path("recipes");
         if (recipes.isArray()) {
             for (JsonNode recipe : recipes) {
-                if ("crafting".equals(getString(recipe.path("type")))) {
+                if (isCraftOrKatgradeRecipeType(getString(recipe.path("type")))) {
                     return true;
                 }
                 if (hasCraftingGrid(recipe.path("slots"))) {
@@ -42,6 +43,11 @@ public class NEUItemFilterHandler {
             }
         }
         return false;
+    }
+
+    private boolean isCraftOrKatgradeRecipeType(String type) {
+        String normalized = type == null ? "" : type.toLowerCase(Locale.ROOT);
+        return "crafting".equals(normalized) || "craft".equals(normalized) || "katgrade".equals(normalized);
     }
 
     private boolean hasCraftingGrid(JsonNode recipe) {

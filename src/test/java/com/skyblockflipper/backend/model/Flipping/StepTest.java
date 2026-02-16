@@ -96,11 +96,14 @@ class StepTest {
         Step sell = Step.forSellMarketBased(25L, "{}");
         Step forge = Step.forForgeFixed(120L);
         Step craft = Step.forCraftInstant(2L);
+        Step wait = Step.forWaitFixed(42L);
 
         assertEquals(StepType.BUY, buy.getType());
         assertEquals(DurationType.MARKET_BASED, buy.getDurationType());
         assertEquals(StepType.SELL, sell.getType());
         assertEquals(StepType.FORGE, forge.getType());
         assertEquals(StepType.CRAFT, craft.getType());
+        assertEquals(StepType.WAIT, wait.getType());
+        assertEquals(DurationType.FIXED, wait.getDurationType());
     }
 }

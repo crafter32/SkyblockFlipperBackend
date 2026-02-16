@@ -127,6 +127,14 @@ public class NEUClient {
 
 
     public synchronized List<JsonNode> loadItemJsons() throws IOException, InterruptedException {
+        return readItemJsons(true);
+    }
+
+    public synchronized List<JsonNode> loadAllItemJsons() throws IOException, InterruptedException {
+        return readItemJsons(false);
+    }
+
+    private List<JsonNode> readItemJsons(boolean applyFilter) throws IOException, InterruptedException {
         refreshItemsIfStale();
         List<Path> itemPaths;
         try (Stream<Path> paths = Files.walk(itemsDir)) {
@@ -142,7 +150,7 @@ public class NEUClient {
                 items.add(objectMapper.readTree(input));
             }
         }
-        return itemFilterHandler.filter(items);
+        return applyFilter ? itemFilterHandler.filter(items) : items;
     }
 
     private DataSourceHash computeItemsHash(Path dir) throws IOException {

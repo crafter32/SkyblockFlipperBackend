@@ -22,4 +22,16 @@ class FlipDurationTest {
         assertEquals(Duration.ofSeconds(40L), flip.getActiveDuration());
         assertEquals(Duration.ofSeconds(60L), flip.getPassiveDuration());
     }
+
+    @Test
+    void waitStepCountsAsPassiveTime() {
+        Step buy = Step.forBuyMarketBased(30L, "{\"itemId\":\"ARMADILLO;4\",\"amount\":1}");
+        Step wait = Step.forWaitFixed(3600L);
+
+        Flip flip = new Flip(null, FlipType.KATGRADE, List.of(buy, wait), "ARMADILLO;5", List.of());
+
+        assertEquals(Duration.ofSeconds(3630L), flip.getTotalDuration());
+        assertEquals(Duration.ofSeconds(30L), flip.getActiveDuration());
+        assertEquals(Duration.ofSeconds(3600L), flip.getPassiveDuration());
+    }
 }

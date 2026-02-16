@@ -50,6 +50,7 @@ public class NEUItemMapper {
         List<Recipe> recipes = new ArrayList<>();
         int craftIndex = 0;
         int forgeIndex = 0;
+        int katgradeIndex = 0;
 
         JsonNode directRecipe = node.path("recipe");
         List<RecipeIngredient> craftIngredients = ingredientsFromCraftingGrid(directRecipe);
@@ -93,8 +94,11 @@ public class NEUItemMapper {
                             RecipeProcessType.FORGE, duration, ingredients));
                 } else {
                     long duration = isKatgrade ? readDurationSeconds(recipeNode) : 0;
-                    recipes.add(new Recipe(buildRecipeId(item.getId(), "craft", craftIndex++), item,
-                            RecipeProcessType.CRAFT, duration, ingredients));
+                    RecipeProcessType processType = isKatgrade ? RecipeProcessType.KATGRADE : RecipeProcessType.CRAFT;
+                    String recipeType = isKatgrade ? "katgrade" : "craft";
+                    int recipeIndex = isKatgrade ? katgradeIndex++ : craftIndex++;
+                    recipes.add(new Recipe(buildRecipeId(item.getId(), recipeType, recipeIndex), item,
+                            processType, duration, ingredients));
                 }
             }
         }

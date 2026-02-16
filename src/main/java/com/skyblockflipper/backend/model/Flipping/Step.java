@@ -107,6 +107,11 @@ public class Step {
                 StepResource.NONE, 0, SchedulingPolicy.NONE, null);
     }
 
+    public static Step forWaitFixed(long seconds) {
+        return new Step(null, StepType.WAIT, DurationType.FIXED, seconds, null,
+                StepResource.NONE, 0, SchedulingPolicy.NONE, null);
+    }
+
     @PrePersist
     @PreUpdate
     private void validate() {
