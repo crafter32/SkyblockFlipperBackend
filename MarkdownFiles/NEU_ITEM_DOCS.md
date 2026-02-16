@@ -1,21 +1,39 @@
 # NotEnoughUpdates Item Database Documentation
 
-Complete documentation for the `/items` directory containing **7,904 JSON files**.
+Version/Commit: `faa6093`  
+Last updated: `2026-02-16`  
+Complete documentation for the `/items` directory containing approximately **7,900+ JSON files** (count is approximate and may change).
 
 ---
 
 ## Table of Contents
 
-1. [JSON Structure](#json-structure)
-2. [Recipe Types](#recipe-types)
-3. [Item Categories](#item-categories)
-4. [Rarity Tiers](#rarity-tiers)
-5. [Filter Patterns](#filter-patterns)
-6. [Special Fields](#special-fields)
-7. [Minecraft Item IDs](#minecraft-item-ids)
-8. [Island Locations](#island-locations)
-9. [Slayer Requirements](#slayer-requirements)
-10. [Command Examples](#command-examples)
+1. [Overview](#overview)
+2. [JSON Structure](#json-structure)
+3. [Recipe Types](#recipe-types)
+4. [Item Categories](#item-categories)
+5. [Rarity Tiers](#rarity-tiers)
+6. [Filter Patterns](#filter-patterns)
+7. [Special Fields](#special-fields)
+8. [Minecraft Item IDs](#minecraft-item-ids)
+9. [Island Locations](#island-locations)
+10. [Slayer Requirements](#slayer-requirements)
+11. [Command Examples](#command-examples)
+
+---
+
+## Overview
+
+The NotEnoughUpdates (NEU) item database is the primary data source for craft flip ingestion and craft flip calculations in the Skyblock Flipper backend pipeline.
+
+Key data pulled from NEU includes:
+- item recipes (both direct `recipe` grids and structured `recipes` entries)
+- NPC shop prices and purchase recipes
+- forge process durations and inputs
+- item metadata (IDs, lore, rarity, category, NBT payloads)
+- recipe dependencies used to build multi-step ingredient graphs
+
+Use this document as the reference when implementing, extending, or debugging NEU-based craft flip ingestion and normalization.
 
 ---
 

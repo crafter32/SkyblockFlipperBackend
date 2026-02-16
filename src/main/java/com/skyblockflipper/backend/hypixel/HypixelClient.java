@@ -19,6 +19,7 @@ import java.util.List;
 @Slf4j
 @Service
 public class HypixelClient {
+    // Base URL already contains /v2 (see config.hypixel.api-url), so this stays resource-relative.
     private static final String ELECTION_RESOURCE_PATH = "/resources/skyblock/election";
 
     private final RestClient restClient;

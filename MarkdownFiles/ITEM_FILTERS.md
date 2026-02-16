@@ -6,7 +6,7 @@ This document describes how to filter items in the `/items` directory by type.
 
 | Type | JSON Pattern | Filename Pattern |
 |------|-------------|------------------|
-| **Craft** | Has `"recipe": {...}` (object with A1-C3 grid) | - |
+| **Craft** | Has `"recipe": {...}` (A1-C3 grid) **or** has `"recipes": [{"type":"crafting","slots": {...}}]` | - |
 | **Forge** | Has `"recipes": [{"type": "forge", ...}]` | - |
 | **Pets** | Has `"petInfo"` in nbttag | `*;0.json` to `*;4.json` |
 | **Shards** | - | `*SHARD*.json` |
@@ -17,7 +17,11 @@ This document describes how to filter items in the `/items` directory by type.
 
 ### Craft Items
 
-Items crafted at a crafting table have a `recipe` object with grid positions:
+Crafted items are identified by either:
+1. A top-level `recipe` object with grid positions.
+2. A `recipes` array entry with `"type": "crafting"` and a `slots` map.
+
+This matches `src/main/java/com/skyblockflipper/backend/NEU/NEUItemFilterHandler.java`, where craft detection checks both `node.path("recipe")` and entries in `node.path("recipes")`.
 
 ```json
 "recipe": {
@@ -31,6 +35,18 @@ Items crafted at a crafting table have a `recipe` object with grid positions:
   "C2": "ITEM:1",
   "C3": "ITEM:1"
 }
+```
+
+```json
+"recipes": [
+  {
+    "type": "crafting",
+    "slots": {
+      "A1": "ITEM:1",
+      "B2": "ITEM:2"
+    }
+  }
+]
 ```
 
 ### Forge Items
@@ -76,8 +92,14 @@ Example: `ATTRIBUTE_SHARD_ALMIGHTY;1.json`
 ## Command Examples
 
 ```bash
-# Find CRAFT items (crafting table recipe)
+# Quick approximation for CRAFT items (fast grep, may miss/overmatch):
 grep -l '"recipe":' items/*.json
+
+# Accurate CRAFT detection (requires jq):
+# Matches .recipe OR .recipes[] entries where .type == "crafting"
+for f in items/*.json; do
+  jq -e '.recipe? != null or ((.recipes // []) | any(.type == "crafting"))' "$f" >/dev/null && echo "$f"
+done
 
 # Find FORGE items
 grep -l '"type": "forge"' items/*.json
@@ -90,6 +112,12 @@ ls items/*SHARD*.json
 
 # Count each type
 grep -l '"recipe":' items/*.json | wc -l
+
+# Accurate craft count (requires jq)
+for f in items/*.json; do
+  jq -e '.recipe? != null or ((.recipes // []) | any(.type == "crafting"))' "$f" >/dev/null && echo "$f"
+done | wc -l
+
 grep -l '"type": "forge"' items/*.json | wc -l
 ls items/*\;[0-4].json | wc -l
 ls items/*SHARD*.json | wc -l

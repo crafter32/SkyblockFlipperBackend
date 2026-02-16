@@ -283,6 +283,9 @@ public class UnifiedFlipDtoMapper {
         Double liquidityScore = average(liquiditySignals);
         Double riskScore = average(riskSignals);
         if (riskScore == null && liquidityScore != null) {
+            // Heuristic fallback: if average(riskSignals) is unavailable but liquidityScore exists,
+            // derive riskScore as inverse liquidity (low liquidity => higher risk). This is intentional
+            // and means risk/liquidity are not fully independent metrics for consumers.
             riskScore = 1D - liquidityScore;
         }
 
@@ -361,7 +364,7 @@ public class UnifiedFlipDtoMapper {
 
         long baseClaimTax = computeAuctionClaimTax(grossRevenue);
         long claimTax = Math.min(
-                ceilToLong(baseClaimTax * taxMultiplier),
+                baseClaimTax,
                 Math.max(0L, grossRevenue - CLAIM_TAX_MIN_REMAINING_COINS)
         );
 
