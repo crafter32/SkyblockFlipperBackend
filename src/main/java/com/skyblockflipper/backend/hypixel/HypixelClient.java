@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,9 @@ import java.util.List;
 @Slf4j
 @Service
 public class HypixelClient {
+    // Base URL already contains /v2 (see config.hypixel.api-url), so this stays resource-relative.
+    private static final String ELECTION_RESOURCE_PATH = "/resources/skyblock/election";
+
     private final RestClient restClient;
     private final String apiKey;
 
@@ -79,6 +83,17 @@ public class HypixelClient {
                 new ParameterizedTypeReference<>() {}
         );
         if (result == null || !result.isSuccess()) {
+            return null;
+        }
+        return result;
+    }
+
+    public JsonNode fetchElection() {
+        JsonNode result = request(
+                ELECTION_RESOURCE_PATH,
+                new ParameterizedTypeReference<>() {}
+        );
+        if (result == null || !result.path("success").asBoolean(false)) {
             return null;
         }
         return result;

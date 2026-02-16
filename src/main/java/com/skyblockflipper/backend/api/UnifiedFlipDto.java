@@ -25,9 +25,19 @@ public record UnifiedFlipDto(
         Double liquidityScore,
         Double riskScore,
         Instant snapshotTimestamp,
+        boolean partial,
+        List<String> partialReasons,
         List<StepDto> steps,
         List<ConstraintDto> constraints
 ) {
+    public UnifiedFlipDto {
+        inputItems = inputItems == null ? List.of() : List.copyOf(inputItems);
+        outputItems = outputItems == null ? List.of() : List.copyOf(outputItems);
+        partialReasons = partialReasons == null ? List.of() : List.copyOf(partialReasons);
+        steps = steps == null ? List.of() : List.copyOf(steps);
+        constraints = constraints == null ? List.of() : List.copyOf(constraints);
+    }
+
     public record ItemStackDto(
             String itemId,
             int amount
