@@ -2,6 +2,7 @@ package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.hypixel.HypixelClient;
 import com.skyblockflipper.backend.model.market.MarketSnapshot;
+import com.skyblockflipper.backend.service.market.MarketTimescaleFeatureService;
 import com.skyblockflipper.backend.service.market.MarketSnapshotPersistenceService;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -25,12 +26,19 @@ class FlipCalculationContextServiceTest {
         MarketSnapshotPersistenceService marketSnapshotService = mock(MarketSnapshotPersistenceService.class);
         HypixelClient hypixelClient = mock(HypixelClient.class);
         UnifiedFlipInputMapper inputMapper = new UnifiedFlipInputMapper();
+        MarketTimescaleFeatureService featureService = mock(MarketTimescaleFeatureService.class);
 
         MarketSnapshot snapshot = new MarketSnapshot(Instant.parse("2026-02-16T10:00:00Z"), null, null);
         when(marketSnapshotService.latest()).thenReturn(Optional.of(snapshot));
+        when(featureService.computeFor(snapshot)).thenReturn(FlipScoreFeatureSet.empty());
         when(hypixelClient.fetchElection()).thenReturn(null);
 
-        FlipCalculationContextService service = new FlipCalculationContextService(marketSnapshotService, inputMapper, hypixelClient);
+        FlipCalculationContextService service = new FlipCalculationContextService(
+                marketSnapshotService,
+                inputMapper,
+                featureService,
+                hypixelClient
+        );
 
         FlipCalculationContext context = service.loadCurrentContext();
 
@@ -38,6 +46,7 @@ class FlipCalculationContextServiceTest {
         assertEquals(1.0D, context.auctionTaxMultiplier());
         assertEquals(0.0125D, context.bazaarTaxRate());
         assertEquals(Instant.parse("2026-02-16T10:00:00Z"), context.marketSnapshot().snapshotTimestamp());
+        assertNotNull(context.scoreFeatureSet());
     }
 
     @Test
@@ -45,6 +54,7 @@ class FlipCalculationContextServiceTest {
         MarketSnapshotPersistenceService marketSnapshotService = mock(MarketSnapshotPersistenceService.class);
         HypixelClient hypixelClient = mock(HypixelClient.class);
         UnifiedFlipInputMapper inputMapper = new UnifiedFlipInputMapper();
+        MarketTimescaleFeatureService featureService = mock(MarketTimescaleFeatureService.class);
 
         when(marketSnapshotService.latest()).thenReturn(Optional.empty());
         when(hypixelClient.fetchElection()).thenReturn(objectMapper.readTree("""
@@ -62,12 +72,18 @@ class FlipCalculationContextServiceTest {
                 }
                 """));
 
-        FlipCalculationContextService service = new FlipCalculationContextService(marketSnapshotService, inputMapper, hypixelClient);
+        FlipCalculationContextService service = new FlipCalculationContextService(
+                marketSnapshotService,
+                inputMapper,
+                featureService,
+                hypixelClient
+        );
 
         FlipCalculationContext context = service.loadCurrentContext();
 
         assertEquals(4.0D, context.auctionTaxMultiplier());
         assertFalse(context.electionPartial());
         assertNotNull(context.marketSnapshot());
+        assertNotNull(context.scoreFeatureSet());
     }
 }

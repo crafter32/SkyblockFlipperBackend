@@ -6,9 +6,10 @@ public record FlipCalculationContext(
         UnifiedFlipInputSnapshot marketSnapshot,
         double bazaarTaxRate,
         double auctionTaxMultiplier,
-        boolean electionPartial
+        boolean electionPartial,
+        FlipScoreFeatureSet scoreFeatureSet
 ) {
     public static FlipCalculationContext standard(UnifiedFlipInputSnapshot snapshot) {
-        return new FlipCalculationContext(snapshot, 0.0125D, 1.0D, false);
+        return new FlipCalculationContext(snapshot, 0.0125D, 1.0D, false, FlipScoreFeatureSet.empty());
     }
 }

@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UnifiedFlipDtoMapperTest {
 
-    private final UnifiedFlipDtoMapper mapper = new UnifiedFlipDtoMapper(new ObjectMapper());
+    private final UnifiedFlipDtoMapper mapper = new UnifiedFlipDtoMapper(new ObjectMapper(), new FlipRiskScorer());
 
     @Test
     void mapsCoreUnifiedFieldsFromFlip() {
@@ -82,8 +82,8 @@ class UnifiedFlipDtoMapperTest {
         UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
                 Instant.parse("2026-02-16T10:00:00Z"),
                 Map.of(
-                        "ENCHANTED_HAY_BLOCK", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 95D, 20_000L, 18_000L, 100, 90),
-                        "TIGHTLY_TIED_HAY_BALE", new UnifiedFlipInputSnapshot.BazaarQuote(250D, 240D, 8_000L, 7_500L, 70, 65)
+                        "ENCHANTED_HAY_BLOCK", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 95D, 20_000L, 18_000L, 1_680_000L, 1_512_000L, 100, 90),
+                        "TIGHTLY_TIED_HAY_BALE", new UnifiedFlipInputSnapshot.BazaarQuote(250D, 240D, 8_000L, 7_500L, 672_000L, 630_000L, 70, 65)
                 ),
                 Map.of()
         );
@@ -116,7 +116,7 @@ class UnifiedFlipDtoMapperTest {
         UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
                 Instant.parse("2026-02-16T10:00:00Z"),
                 Map.of(
-                        "ENCHANTED_DIAMOND_BLOCK", new UnifiedFlipInputSnapshot.BazaarQuote(1_000_000D, 999_000D, 50_000L, 49_000L, 100, 95)
+                        "ENCHANTED_DIAMOND_BLOCK", new UnifiedFlipInputSnapshot.BazaarQuote(1_000_000D, 999_000D, 50_000L, 49_000L, 4_200_000L, 4_116_000L, 100, 95)
                 ),
                 Map.of(
                         "REFINED_DIAMOND", new UnifiedFlipInputSnapshot.AuctionQuote(19_000_000L, 21_000_000L, 20_000_000D, 12)
@@ -125,7 +125,7 @@ class UnifiedFlipDtoMapperTest {
 
         UnifiedFlipDto dto = mapper.toDto(
                 flip,
-                new FlipCalculationContext(snapshot, 0.0125D, 4.0D, false)
+                new FlipCalculationContext(snapshot, 0.0125D, 4.0D, false, FlipScoreFeatureSet.empty())
         );
 
         assertEquals(2_600_400L, dto.requiredCapital());
@@ -152,8 +152,8 @@ class UnifiedFlipDtoMapperTest {
         UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
                 Instant.parse("2026-02-16T11:00:00Z"),
                 Map.of(
-                        "INPUT_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(50D, 49D, 5000L, 4800L, 40, 35),
-                        "OUTPUT_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 100D, 5000L, 4800L, 40, 35)
+                        "INPUT_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(50D, 49D, 5000L, 4800L, 420_000L, 403_200L, 40, 35),
+                        "OUTPUT_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 100D, 5000L, 4800L, 420_000L, 403_200L, 40, 35)
                 ),
                 Map.of(
                         "OUTPUT_ITEM", new UnifiedFlipInputSnapshot.AuctionQuote(150L, 220L, 200D, 15)
@@ -184,7 +184,7 @@ class UnifiedFlipDtoMapperTest {
         UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
                 Instant.parse("2026-02-16T11:00:00Z"),
                 Map.of(
-                        "NPC_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(170D, 160D, 2000L, 2200L, 25, 20)
+                        "NPC_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(170D, 160D, 2000L, 2200L, 168_000L, 184_800L, 25, 20)
                 ),
                 Map.of()
         );
@@ -213,7 +213,7 @@ class UnifiedFlipDtoMapperTest {
         UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
                 Instant.parse("2026-02-16T11:00:00Z"),
                 Map.of(
-                        "AMBIGUOUS_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 90D, 2000L, 2200L, 25, 20)
+                        "AMBIGUOUS_ITEM", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 90D, 2000L, 2200L, 168_000L, 184_800L, 25, 20)
                 ),
                 Map.of(
                         "AMBIGUOUS_ITEM", new UnifiedFlipInputSnapshot.AuctionQuote(80L, 120L, 110D, 10)
@@ -225,4 +225,75 @@ class UnifiedFlipDtoMapperTest {
         assertTrue(dto.partial());
         assertTrue(dto.partialReasons().contains("AMBIGUOUS_INPUT_MARKET_SOURCE:AMBIGUOUS_ITEM"));
     }
+    @Test
+    void computesPositionAwareLiquidityAndRiskScores() {
+        Flip flip = new Flip(
+                UUID.randomUUID(),
+                FlipType.CRAFTING,
+                List.of(
+                        Step.forBuyMarketBased(30L, "{\"itemId\":\"FAST_INPUT\",\"amount\":10,\"market\":\"BAZAAR\"}"),
+                        Step.forSellMarketBased(15L, "{\"itemId\":\"SLOW_OUTPUT\",\"amount\":5,\"market\":\"BAZAAR\"}")
+                ),
+                "SLOW_OUTPUT",
+                List.of()
+        );
+
+        UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
+                Instant.parse("2026-02-16T12:00:00Z"),
+                Map.of(
+                        "FAST_INPUT", new UnifiedFlipInputSnapshot.BazaarQuote(100D, 95D, 10_000L, 12_000L, 840_000L, 1_008_000L, 80, 90),
+                        "SLOW_OUTPUT", new UnifiedFlipInputSnapshot.BazaarQuote(500D, 460D, 100L, 80L, 840L, 336L, 5, 4)
+                ),
+                Map.of()
+        );
+
+        UnifiedFlipDto dto = mapper.toDto(flip, FlipCalculationContext.standard(snapshot));
+
+        assertNotNull(dto.liquidityScore());
+        assertNotNull(dto.riskScore());
+        assertTrue(dto.liquidityScore() >= 0D && dto.liquidityScore() <= 100D);
+        assertTrue(dto.riskScore() >= 0D && dto.riskScore() <= 100D);
+        assertTrue(dto.riskScore() > dto.liquidityScore());
+    }
+
+    @Test
+    void auctionLegDurationsContributeToExposureRisk() {
+        UnifiedFlipInputSnapshot snapshot = new UnifiedFlipInputSnapshot(
+                Instant.parse("2026-02-16T12:00:00Z"),
+                Map.of(),
+                Map.of(
+                        "INPUT_ITEM", new UnifiedFlipInputSnapshot.AuctionQuote(1_000L, 1_200L, 1_100D, 10),
+                        "OUTPUT_ITEM", new UnifiedFlipInputSnapshot.AuctionQuote(2_000L, 2_200L, 2_100D, 10)
+                )
+        );
+
+        Flip shortAuctionFlip = new Flip(
+                UUID.randomUUID(),
+                FlipType.AUCTION,
+                List.of(
+                        Step.forBuyMarketBased(30L, "{\"itemId\":\"INPUT_ITEM\",\"amount\":1,\"market\":\"AUCTION\"}"),
+                        Step.forSellMarketBased(15L, "{\"itemId\":\"OUTPUT_ITEM\",\"amount\":1,\"market\":\"AUCTION\",\"durationHours\":1}")
+                ),
+                "OUTPUT_ITEM",
+                List.of()
+        );
+        Flip longAuctionFlip = new Flip(
+                UUID.randomUUID(),
+                FlipType.AUCTION,
+                List.of(
+                        Step.forBuyMarketBased(30L, "{\"itemId\":\"INPUT_ITEM\",\"amount\":1,\"market\":\"AUCTION\"}"),
+                        Step.forSellMarketBased(15L, "{\"itemId\":\"OUTPUT_ITEM\",\"amount\":1,\"market\":\"AUCTION\",\"durationHours\":48}")
+                ),
+                "OUTPUT_ITEM",
+                List.of()
+        );
+
+        UnifiedFlipDto shortDurationDto = mapper.toDto(shortAuctionFlip, FlipCalculationContext.standard(snapshot));
+        UnifiedFlipDto longDurationDto = mapper.toDto(longAuctionFlip, FlipCalculationContext.standard(snapshot));
+
+        assertNotNull(shortDurationDto.riskScore());
+        assertNotNull(longDurationDto.riskScore());
+        assertTrue(longDurationDto.riskScore() > shortDurationDto.riskScore());
+    }
+
 }

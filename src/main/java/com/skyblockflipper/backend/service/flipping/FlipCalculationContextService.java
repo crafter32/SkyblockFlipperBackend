@@ -1,7 +1,9 @@
 package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.hypixel.HypixelClient;
+import com.skyblockflipper.backend.model.market.MarketSnapshot;
 import com.skyblockflipper.backend.model.market.UnifiedFlipInputSnapshot;
+import com.skyblockflipper.backend.service.market.MarketTimescaleFeatureService;
 import com.skyblockflipper.backend.service.market.MarketSnapshotPersistenceService;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
@@ -17,20 +19,27 @@ public class FlipCalculationContextService {
 
     private final MarketSnapshotPersistenceService marketSnapshotPersistenceService;
     private final UnifiedFlipInputMapper unifiedFlipInputMapper;
+    private final MarketTimescaleFeatureService marketTimescaleFeatureService;
     private final HypixelClient hypixelClient;
 
     public FlipCalculationContextService(MarketSnapshotPersistenceService marketSnapshotPersistenceService,
                                          UnifiedFlipInputMapper unifiedFlipInputMapper,
+                                         MarketTimescaleFeatureService marketTimescaleFeatureService,
                                          HypixelClient hypixelClient) {
         this.marketSnapshotPersistenceService = marketSnapshotPersistenceService;
         this.unifiedFlipInputMapper = unifiedFlipInputMapper;
+        this.marketTimescaleFeatureService = marketTimescaleFeatureService;
         this.hypixelClient = hypixelClient;
     }
 
     public FlipCalculationContext loadCurrentContext() {
-        UnifiedFlipInputSnapshot marketSnapshot = marketSnapshotPersistenceService.latest()
-                .map(unifiedFlipInputMapper::map)
-                .orElseGet(() -> new UnifiedFlipInputSnapshot(Instant.now(), null, null));
+        MarketSnapshot latestMarketSnapshot = marketSnapshotPersistenceService.latest().orElse(null);
+        UnifiedFlipInputSnapshot marketSnapshot = latestMarketSnapshot == null
+                ? new UnifiedFlipInputSnapshot(Instant.now(), null, null)
+                : unifiedFlipInputMapper.map(latestMarketSnapshot);
+        FlipScoreFeatureSet scoreFeatures = latestMarketSnapshot == null
+                ? FlipScoreFeatureSet.empty()
+                : marketTimescaleFeatureService.computeFor(latestMarketSnapshot);
 
         JsonNode election = hypixelClient.fetchElection();
         if (election == null) {
@@ -38,7 +47,8 @@ public class FlipCalculationContextService {
                     marketSnapshot,
                     STANDARD_BAZAAR_TAX,
                     STANDARD_AUCTION_TAX_MULTIPLIER,
-                    true
+                    true,
+                    scoreFeatures
             );
         }
 
@@ -50,7 +60,8 @@ public class FlipCalculationContextService {
                 marketSnapshot,
                 STANDARD_BAZAAR_TAX,
                 auctionTaxMultiplier,
-                false
+                false,
+                scoreFeatures
         );
     }
 
