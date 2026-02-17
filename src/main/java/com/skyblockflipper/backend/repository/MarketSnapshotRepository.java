@@ -17,4 +17,8 @@ public interface MarketSnapshotRepository extends JpaRepository<MarketSnapshotEn
             long startInclusiveEpochMillis,
             long endInclusiveEpochMillis
     );
+
+    List<MarketSnapshotEntity> findBySnapshotTimestampEpochMillisLessThanEqualOrderBySnapshotTimestampEpochMillisAsc(
+            long snapshotTimestampEpochMillis
+    );
 }

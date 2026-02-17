@@ -85,4 +85,61 @@ class MarketSnapshotPersistenceServiceTest {
         assertEquals(Instant.parse("2026-02-15T12:00:00Z"), snapshots.get(0).snapshotTimestamp());
         assertEquals(Instant.parse("2026-02-15T12:00:30Z"), snapshots.get(1).snapshotTimestamp());
     }
+
+    @Test
+    void compactSnapshotsAppliesRetentionTiersAndKeepsDailyFirstSnapshot() {
+        Instant now = Instant.parse("2026-02-17T12:00:00Z");
+
+        // Younger than 90s: keep all.
+        saveAt("2026-02-17T11:59:10Z");
+        saveAt("2026-02-17T11:59:20Z");
+
+        // Minute tier (>90s to <=30m): keep one per minute slot.
+        saveAt("2026-02-17T11:57:05Z");
+        saveAt("2026-02-17T11:57:10Z"); // same minute slot -> delete
+        saveAt("2026-02-17T11:56:20Z");
+
+        // Two-hour tier (>30m to <=12h): keep one per 2h slot.
+        saveAt("2026-02-17T10:58:20Z");
+        saveAt("2026-02-17T11:00:00Z"); // same 10:00-11:59 slot -> delete
+        saveAt("2026-02-17T08:15:00Z");
+
+        // Daily tier (>12h): keep first snapshot per epochDay.
+        saveAt("2026-02-16T00:00:05Z"); // keep for 2026-02-16
+        saveAt("2026-02-16T16:00:00Z"); // delete
+        saveAt("2026-02-15T00:00:10Z"); // keep for 2026-02-15
+        saveAt("2026-02-15T15:00:00Z"); // delete
+
+        MarketSnapshotPersistenceService.SnapshotCompactionResult result = marketSnapshotPersistenceService.compactSnapshots(now);
+
+        assertEquals(10, result.scannedCount());
+        assertEquals(4, result.deletedCount());
+        assertEquals(6, result.keptCount());
+
+        List<MarketSnapshot> survivors = marketSnapshotRepository.findAll().stream()
+                .map(entity -> Instant.ofEpochMilli(entity.getSnapshotTimestampEpochMillis()))
+                .sorted()
+                .map(ts -> new MarketSnapshot(ts, List.of(), Map.of()))
+                .toList();
+
+        assertEquals(8, survivors.size());
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T11:59:10Z"))));
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T11:59:20Z"))));
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T11:57:05Z"))));
+        assertTrue(survivors.stream().noneMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T11:57:10Z"))));
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T10:58:20Z"))));
+        assertTrue(survivors.stream().noneMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-17T11:00:00Z"))));
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-16T00:00:05Z"))));
+        assertTrue(survivors.stream().noneMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-16T16:00:00Z"))));
+        assertTrue(survivors.stream().anyMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-15T00:00:10Z"))));
+        assertTrue(survivors.stream().noneMatch(s -> s.snapshotTimestamp().equals(Instant.parse("2026-02-15T15:00:00Z"))));
+    }
+
+    private void saveAt(String timestamp) {
+        marketSnapshotPersistenceService.save(new MarketSnapshot(
+                Instant.parse(timestamp),
+                List.of(),
+                Map.of()
+        ));
+    }
 }

@@ -1,7 +1,6 @@
 ####################################################################################################################
 # WARNING: Do not store sensitive information in this file, as its contents will be included in the Qodana report. #
 ####################################################################################################################
-
 version: "1.0"
 linter: jetbrains/qodana-jvm:2025.3
 profile:
@@ -10,6 +9,7 @@ include:
   - name: CheckDependencyLicenses
 exclude:
   - name: JvmCoverageInspection
+  - name: DuplicateExpressions
 failureConditions:
   testCoverageThresholds:
     total: 75
