@@ -60,4 +60,29 @@ class MarketSnapshotPersistenceServiceTest {
 
         assertEquals(Instant.parse("2026-02-15T12:00:00Z"), asOf.snapshotTimestamp());
     }
+
+    @Test
+    void betweenReturnsSnapshotsInsideInclusiveRangeOrderedByTimestamp() {
+        marketSnapshotPersistenceService.save(new MarketSnapshot(
+                Instant.parse("2026-02-15T11:59:59Z"), List.of(), Map.of()
+        ));
+        marketSnapshotPersistenceService.save(new MarketSnapshot(
+                Instant.parse("2026-02-15T12:00:00Z"), List.of(), Map.of()
+        ));
+        marketSnapshotPersistenceService.save(new MarketSnapshot(
+                Instant.parse("2026-02-15T12:00:30Z"), List.of(), Map.of()
+        ));
+        marketSnapshotPersistenceService.save(new MarketSnapshot(
+                Instant.parse("2026-02-15T12:01:01Z"), List.of(), Map.of()
+        ));
+
+        List<MarketSnapshot> snapshots = marketSnapshotPersistenceService.between(
+                Instant.parse("2026-02-15T12:00:00Z"),
+                Instant.parse("2026-02-15T12:01:00Z")
+        );
+
+        assertEquals(2, snapshots.size());
+        assertEquals(Instant.parse("2026-02-15T12:00:00Z"), snapshots.get(0).snapshotTimestamp());
+        assertEquals(Instant.parse("2026-02-15T12:00:30Z"), snapshots.get(1).snapshotTimestamp());
+    }
 }

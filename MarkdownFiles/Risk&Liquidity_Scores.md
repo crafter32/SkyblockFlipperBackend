@@ -42,10 +42,9 @@ We do NOT poll separately every minute. We derive minute-level metrics from the 
 **Purpose:** long-horizon baseline, drift detection, and “macro” risk that cannot be inferred from a short 5s/1m window.
 
 Daily snapshots are stored as:
-- A deterministic daily anchor such as:
-  - the snapshot closest to **00:00 UTC** (or a fixed local time), OR
-  - the first snapshot after a fixed daily timestamp.
-- Store as `Snapshot1d` (essentially a selected `Snapshot5s` with a day key).
+- A deterministic UTC bucket key: `epochDay = floor(snapshotInstant.getEpochSecond() / 86400)`.
+- Exactly one `Snapshot1d` per `epochDay`, selected as the **first 5s snapshot in that UTC day**.
+- Store as `Snapshot1d[epochDay]` (selected from the 5s stream, not separately polled).
 
 From daily snapshots you can compute long-horizon features:
 - **1d return**: `r_1d = ln(mid_today / mid_yesterday)`
@@ -53,6 +52,42 @@ From daily snapshots you can compute long-horizon features:
 - **trend / regime**: moving averages, z-scores, anomaly flags
 
 These features are designed to be robust against short-term manipulation/noise.
+
+---
+
+## Daily Snapshot Semantics (Using `java.time.Instant`)
+
+Daily snapshots are stored using `java.time.Instant` and therefore operate in **absolute UTC time**.  
+They are not based on local calendar dates and must never depend on system timezone.
+
+### 1) Defining a Day (canonical)
+
+`epochDay = floor(snapshotInstant.getEpochSecond() / 86400)`
+
+- `snapshotInstant.getEpochSecond()` is UTC epoch seconds from `Instant`.
+- `86400` is seconds per UTC day.
+
+This day key is monotonic and independent of DST, server region, JVM timezone, and local calendar assumptions.
+
+### 2) Selecting the Daily Snapshot
+
+We do not poll separately once per day.  
+Daily snapshots are derived from the 5-second stream:
+
+- Compute `currentDay = epochDay(snapshot.instant)`.
+- If `currentDay > lastStoredDay`, store this snapshot as `Snapshot1d[currentDay]`.
+
+Equivalent replay/backfill rule:
+- For each `epochDay`, keep the **earliest** snapshot timestamp in that bucket.
+
+This guarantees deterministic daily anchors without requiring a midnight-exact poll.
+
+### 3) Guardrails
+
+- Do not use `LocalDate.now()` for day semantics.
+- Do not use `ZonedDateTime.systemDefault()`.
+- Do not use location timezones such as `Europe/Vienna`.
+- Use only `Instant` epoch-seconds day bucketing.
 
 ---
 
@@ -156,7 +191,7 @@ Architecture rule:
 
 ### Snapshot stores
 - `Store5s`: ring buffer / deque, prune entries older than `windowMs` (e.g. 60s or 300s)
-- `Store1d`: map keyed by `YYYY-MM-DD` (or epoch day) storing one anchor snapshot per day
+- `Store1d`: map keyed by `epochDay` storing the first 5s snapshot in each UTC day bucket
 
 ### Feature extraction API
 At scoring time, produce:
@@ -210,7 +245,7 @@ They also allow:
 ## Suggested Configuration Defaults
 
 - 5s retention window: 60–300 seconds
-- daily anchor time: fixed (00:00 UTC recommended)
+- daily keying: `epochDay = floor(epochSeconds/86400)` (UTC, `Instant`-only)
 - micro volatility window: last 60 seconds (5s steps)
 - macro volatility window: last 7 / 30 days
 - risk weights: (exec=0.45, micro=0.35, macro=0.20) configurable

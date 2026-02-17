@@ -58,6 +58,20 @@ public class MarketSnapshotPersistenceService {
                 .map(this::toDomain);
     }
 
+    public List<MarketSnapshot> between(Instant fromInclusive, Instant toInclusive) {
+        if (fromInclusive == null || toInclusive == null || fromInclusive.isAfter(toInclusive)) {
+            return List.of();
+        }
+        return marketSnapshotRepository
+                .findBySnapshotTimestampEpochMillisBetweenOrderBySnapshotTimestampEpochMillisAsc(
+                        fromInclusive.toEpochMilli(),
+                        toInclusive.toEpochMilli()
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private MarketSnapshot toDomain(MarketSnapshotEntity entity) {
         try {
             List<AuctionMarketRecord> auctions = objectMapper.readValue(entity.getAuctionsJson(), AUCTIONS_TYPE);

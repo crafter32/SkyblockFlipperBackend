@@ -3,6 +3,7 @@ package com.skyblockflipper.backend.repository;
 import com.skyblockflipper.backend.model.market.MarketSnapshotEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,4 +12,9 @@ public interface MarketSnapshotRepository extends JpaRepository<MarketSnapshotEn
     Optional<MarketSnapshotEntity> findTopByOrderBySnapshotTimestampEpochMillisDesc();
 
     Optional<MarketSnapshotEntity> findTopBySnapshotTimestampEpochMillisLessThanEqualOrderBySnapshotTimestampEpochMillisDesc(long snapshotTimestampEpochMillis);
+
+    List<MarketSnapshotEntity> findBySnapshotTimestampEpochMillisBetweenOrderBySnapshotTimestampEpochMillisAsc(
+            long startInclusiveEpochMillis,
+            long endInclusiveEpochMillis
+    );
 }

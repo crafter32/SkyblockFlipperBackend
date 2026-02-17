@@ -14,14 +14,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Component
 public class UnifiedFlipDtoMapper {
@@ -38,6 +31,14 @@ public class UnifiedFlipDtoMapper {
     private static final double MAX_TIME_FOR_SCORING_HOURS = 24.0D;
     private static final double EXECUTION_SPREAD_WEIGHT = 0.5D;
     private static final double EXECUTION_TIME_WEIGHT = 0.5D;
+    private static final double STRUCTURAL_ILLIQUIDITY_PENALTY = 10D;
+    private static final double MICRO_VOLATILITY_CAP = 0.03D;
+    private static final double MICRO_RETURN_CAP = 0.05D;
+    private static final double MACRO_VOLATILITY_CAP = 0.12D;
+    private static final double MACRO_RETURN_CAP = 0.20D;
+    private static final double TOTAL_RISK_EXECUTION_WEIGHT = 0.45D;
+    private static final double TOTAL_RISK_MICRO_WEIGHT = 0.35D;
+    private static final double TOTAL_RISK_MACRO_WEIGHT = 0.20D;
 
     private static final Logger log = LoggerFactory.getLogger(UnifiedFlipDtoMapper.class);
     private final ObjectMapper objectMapper;
@@ -213,6 +214,7 @@ public class UnifiedFlipDtoMapper {
                                               LinkedHashSet<String> partialReasons) {
         List<Double> legLiquidityScores = new ArrayList<>();
         List<Double> legExecutionRiskScores = new ArrayList<>();
+        List<String> bazaarSignalItemIds = new ArrayList<>();
 
         long runningExposure = 0L;
         long peakExposure = 0L;
@@ -248,7 +250,16 @@ public class UnifiedFlipDtoMapper {
                 totalInputCost += stepCost;
                 runningExposure += stepCost;
                 peakExposure = Math.max(peakExposure, runningExposure);
-                Double fillTimeHours = updateSignals(quote, parsed.amount(), TradeSide.BUY, legLiquidityScores, legExecutionRiskScores, partialReasons);
+                Double fillTimeHours = updateSignals(
+                        quote,
+                        parsed.amount(),
+                        TradeSide.BUY,
+                        safeContextFeatures(context),
+                        legLiquidityScores,
+                        legExecutionRiskScores,
+                        bazaarSignalItemIds,
+                        partialReasons
+                );
                 if (fillTimeHours != null) {
                     inputFillHours += fillTimeHours;
                 }
@@ -273,7 +284,16 @@ public class UnifiedFlipDtoMapper {
                 runningExposure += sellComputation.upfrontFees();
                 peakExposure = Math.max(peakExposure, runningExposure);
                 runningExposure = Math.max(0L, runningExposure - sellComputation.netProceeds());
-                Double fillTimeHours = updateSignals(sellComputation.quote(), parsed.amount(), TradeSide.SELL, legLiquidityScores, legExecutionRiskScores, partialReasons);
+                Double fillTimeHours = updateSignals(
+                        sellComputation.quote(),
+                        parsed.amount(),
+                        TradeSide.SELL,
+                        safeContextFeatures(context),
+                        legLiquidityScores,
+                        legExecutionRiskScores,
+                        bazaarSignalItemIds,
+                        partialReasons
+                );
                 if (fillTimeHours != null) {
                     outputFillHours += fillTimeHours;
                 }
@@ -297,7 +317,16 @@ public class UnifiedFlipDtoMapper {
                 totalFees += sellComputation.totalFees();
                 runningExposure += sellComputation.upfrontFees();
                 peakExposure = Math.max(peakExposure, runningExposure);
-                Double fillTimeHours = updateSignals(sellComputation.quote(), implicitSell.amount(), TradeSide.SELL, legLiquidityScores, legExecutionRiskScores, partialReasons);
+                Double fillTimeHours = updateSignals(
+                        sellComputation.quote(),
+                        implicitSell.amount(),
+                        TradeSide.SELL,
+                        safeContextFeatures(context),
+                        legLiquidityScores,
+                        legExecutionRiskScores,
+                        bazaarSignalItemIds,
+                        partialReasons
+                );
                 if (fillTimeHours != null) {
                     outputFillHours += fillTimeHours;
                 }
@@ -307,7 +336,14 @@ public class UnifiedFlipDtoMapper {
         }
 
         Double liquidityScore = minValue(legLiquidityScores);
-        Double riskScore = computeTotalRiskScore(legExecutionRiskScores, inputFillHours, outputFillHours, craftDelayHours);
+        Double riskScore = computeTotalRiskScore(
+                legExecutionRiskScores,
+                inputFillHours,
+                outputFillHours,
+                craftDelayHours,
+                safeContextFeatures(context),
+                bazaarSignalItemIds
+        );
 
         return new PricingComputation(
                 totalInputCost,
@@ -520,8 +556,10 @@ public class UnifiedFlipDtoMapper {
     private Double updateSignals(PriceQuote quote,
                                  int amount,
                                  TradeSide tradeSide,
+                                 FlipScoreFeatureSet featureSet,
                                  List<Double> legLiquidityScores,
                                  List<Double> legExecutionRiskScores,
+                                 List<String> bazaarSignalItemIds,
                                  LinkedHashSet<String> partialReasons) {
         if (quote == null) {
             return null;
@@ -531,10 +569,15 @@ public class UnifiedFlipDtoMapper {
             UnifiedFlipInputSnapshot.BazaarQuote bazaar = quote.bazaarQuote();
             double spreadRel = computeRelativeSpread(bazaar);
             double fillTimeHours = computeFillTimeHours(bazaar, amount, tradeSide, partialReasons, quote.itemId());
+            bazaarSignalItemIds.add(quote.itemId());
 
             double liquidityScore = 100D
                     * (1D / (1D + fillTimeHours / LIQUIDITY_TIME_SCALE_HOURS))
                     * (1D / (1D + spreadRel / LIQUIDITY_SPREAD_SCALE));
+            FlipScoreFeatureSet.ItemTimescaleFeatures features = featureSet.get(quote.itemId());
+            if (features != null && features.structurallyIlliquid()) {
+                liquidityScore -= STRUCTURAL_ILLIQUIDITY_PENALTY;
+            }
             legLiquidityScores.add(clamp(liquidityScore, 0D, 100D));
 
             double spreadRisk = clamp01(spreadRel / EXECUTION_SPREAD_CAP) * 100D;
@@ -556,38 +599,131 @@ public class UnifiedFlipDtoMapper {
         return null;
     }
 
+    private FlipScoreFeatureSet safeContextFeatures(FlipCalculationContext context) {
+        if (context == null || context.scoreFeatureSet() == null) {
+            return FlipScoreFeatureSet.empty();
+        }
+        return context.scoreFeatureSet();
+    }
+
     private Double minValue(List<Double> values) {
         if (values == null || values.isEmpty()) {
             return null;
         }
-        return values.stream().filter(v -> v != null).min(Double::compareTo).orElse(null);
+        return values.stream().filter(Objects::nonNull).min(Double::compareTo).orElse(null);
     }
 
     private Double computeTotalRiskScore(List<Double> legExecutionRiskScores,
                                          double inputFillHours,
                                          double outputFillHours,
-                                         double craftDelayHours) {
+                                         double craftDelayHours,
+                                         FlipScoreFeatureSet featureSet,
+                                         List<String> bazaarSignalItemIds) {
         Double executionRisk = maxValue(legExecutionRiskScores);
         if (executionRisk == null) {
             return null;
         }
 
         double exposureHours = inputFillHours + outputFillHours + craftDelayHours;
-        double craftRisk = clamp01(exposureHours / EXPOSURE_TIME_CAP_HOURS) * 100D;
-        double volatilityProxy = executionRisk;
+        double exposureRisk = clamp01(exposureHours / EXPOSURE_TIME_CAP_HOURS) * 100D;
+        double executionComposite = clamp((0.7D * executionRisk) + (0.3D * exposureRisk), 0D, 100D);
+
+        RiskAggregation microAggregation = aggregateTimescaleRisk(featureSet, bazaarSignalItemIds, true);
+        RiskAggregation macroAggregation = aggregateTimescaleRisk(featureSet, bazaarSignalItemIds, false);
+
+        double microWeight = TOTAL_RISK_MICRO_WEIGHT * microAggregation.confidenceFactor();
+        double macroWeight = TOTAL_RISK_MACRO_WEIGHT * macroAggregation.confidenceFactor();
+        double executionWeight = TOTAL_RISK_EXECUTION_WEIGHT
+                + (TOTAL_RISK_MICRO_WEIGHT - microWeight)
+                + (TOTAL_RISK_MACRO_WEIGHT - macroWeight);
+
+        double microRisk = microAggregation.riskScore() == null ? executionComposite : microAggregation.riskScore();
+        double macroRisk = macroAggregation.riskScore() == null ? executionComposite : macroAggregation.riskScore();
 
         return clamp(
-                (0.45D * executionRisk) + (0.35D * volatilityProxy) + (0.20D * craftRisk),
+                (executionWeight * executionComposite) + (microWeight * microRisk) + (macroWeight * macroRisk),
                 0D,
                 100D
         );
+    }
+
+    private RiskAggregation aggregateTimescaleRisk(FlipScoreFeatureSet featureSet,
+                                                   List<String> bazaarSignalItemIds,
+                                                   boolean micro) {
+        if (featureSet == null || bazaarSignalItemIds == null || bazaarSignalItemIds.isEmpty()) {
+            return RiskAggregation.empty();
+        }
+
+        Set<String> uniqueItemIds = new LinkedHashSet<>(bazaarSignalItemIds);
+        List<Double> risks = new ArrayList<>();
+        double minConfidenceFactor = 1D;
+        boolean hasConfidence = false;
+
+        for (String itemId : uniqueItemIds) {
+            FlipScoreFeatureSet.ItemTimescaleFeatures itemFeatures = featureSet.get(itemId);
+            if (itemFeatures == null) {
+                continue;
+            }
+            Double risk = micro ? computeMicroRisk(itemFeatures) : computeMacroRisk(itemFeatures);
+            if (risk == null) {
+                continue;
+            }
+            risks.add(risk);
+            double confidence = micro
+                    ? itemFeatures.microConfidence().weightFactor()
+                    : itemFeatures.macroConfidence().weightFactor();
+            minConfidenceFactor = Math.min(minConfidenceFactor, confidence);
+            hasConfidence = true;
+        }
+
+        if (risks.isEmpty()) {
+            return RiskAggregation.empty();
+        }
+        double confidenceFactor = hasConfidence ? minConfidenceFactor : 0D;
+        return new RiskAggregation(maxValue(risks), confidenceFactor);
+    }
+
+    private Double computeMicroRisk(FlipScoreFeatureSet.ItemTimescaleFeatures features) {
+        if (features == null) {
+            return null;
+        }
+        Double volatility = features.microVolatility1m();
+        Double ret = features.microReturn1m();
+        return combineVolAndReturnRisk(volatility, ret, MICRO_VOLATILITY_CAP, MICRO_RETURN_CAP);
+    }
+
+    private Double computeMacroRisk(FlipScoreFeatureSet.ItemTimescaleFeatures features) {
+        if (features == null) {
+            return null;
+        }
+        Double volatility = features.macroVolatility1d();
+        Double ret = features.macroReturn1d();
+        return combineVolAndReturnRisk(volatility, ret, MACRO_VOLATILITY_CAP, MACRO_RETURN_CAP);
+    }
+
+    private Double combineVolAndReturnRisk(Double volatility,
+                                           Double ret,
+                                           double volatilityCap,
+                                           double returnCap) {
+        if (volatility == null && ret == null) {
+            return null;
+        }
+        if (volatility != null && ret != null) {
+            double volRisk = clamp01(volatility / volatilityCap) * 100D;
+            double returnRisk = clamp01(Math.abs(ret) / returnCap) * 100D;
+            return clamp((0.7D * volRisk) + (0.3D * returnRisk), 0D, 100D);
+        }
+        if (volatility != null) {
+            return clamp01(volatility / volatilityCap) * 100D;
+        }
+        return clamp01(Math.abs(ret) / returnCap) * 100D;
     }
 
     private Double maxValue(List<Double> values) {
         if (values == null || values.isEmpty()) {
             return null;
         }
-        return values.stream().filter(v -> v != null).max(Double::compareTo).orElse(null);
+        return values.stream().filter(Objects::nonNull).max(Double::compareTo).orElse(null);
     }
 
     private double computeRelativeSpread(UnifiedFlipInputSnapshot.BazaarQuote bazaarQuote) {
@@ -790,6 +926,15 @@ public class UnifiedFlipDtoMapper {
             Double liquidityScore,
             Double riskScore
     ) {
+    }
+
+    private record RiskAggregation(
+            Double riskScore,
+            double confidenceFactor
+    ) {
+        private static RiskAggregation empty() {
+            return new RiskAggregation(null, 0D);
+        }
     }
 
     private record PriceQuote(

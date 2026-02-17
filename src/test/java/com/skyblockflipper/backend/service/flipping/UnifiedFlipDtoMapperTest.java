@@ -125,7 +125,7 @@ class UnifiedFlipDtoMapperTest {
 
         UnifiedFlipDto dto = mapper.toDto(
                 flip,
-                new FlipCalculationContext(snapshot, 0.0125D, 4.0D, false)
+                new FlipCalculationContext(snapshot, 0.0125D, 4.0D, false, FlipScoreFeatureSet.empty())
         );
 
         assertEquals(2_600_400L, dto.requiredCapital());
