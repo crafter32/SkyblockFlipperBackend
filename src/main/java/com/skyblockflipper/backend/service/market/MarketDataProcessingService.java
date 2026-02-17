@@ -55,4 +55,8 @@ public class MarketDataProcessingService {
         long boundedSecondsAgo = Math.max(0L, secondsAgo);
         return marketSnapshotPersistenceService.asOf(java.time.Instant.now().minusSeconds(boundedSecondsAgo));
     }
+
+    public MarketSnapshotPersistenceService.SnapshotCompactionResult compactSnapshots() {
+        return marketSnapshotPersistenceService.compactSnapshots();
+    }
 }

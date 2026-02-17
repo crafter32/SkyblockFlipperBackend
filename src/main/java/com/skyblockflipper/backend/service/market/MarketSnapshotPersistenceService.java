@@ -11,12 +11,22 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class MarketSnapshotPersistenceService {
+
+    private static final long RAW_WINDOW_SECONDS = 90L;
+    private static final long MINUTE_TIER_UPPER_SECONDS = 30L * 60L;
+    private static final long TWO_HOUR_TIER_UPPER_SECONDS = 12L * 60L * 60L;
+    private static final long MINUTE_INTERVAL_MILLIS = 60_000L;
+    private static final long TWO_HOUR_INTERVAL_MILLIS = 2L * 60L * 60L * 1000L;
+    private static final long SECONDS_PER_DAY = 86_400L;
 
     private static final TypeReference<List<AuctionMarketRecord>> AUCTIONS_TYPE = new TypeReference<>() {};
     private static final TypeReference<Map<String, BazaarMarketRecord>> BAZAAR_TYPE = new TypeReference<>() {};
@@ -72,6 +82,60 @@ public class MarketSnapshotPersistenceService {
                 .toList();
     }
 
+    public SnapshotCompactionResult compactSnapshots() {
+        return compactSnapshots(Instant.now());
+    }
+
+    public SnapshotCompactionResult compactSnapshots(Instant now) {
+        Instant safeNow = now == null ? Instant.now() : now;
+        long nowMillis = safeNow.toEpochMilli();
+        long compactionCandidateUpperBound = nowMillis - (RAW_WINDOW_SECONDS * 1_000L);
+
+        List<MarketSnapshotEntity> candidates = marketSnapshotRepository
+                .findBySnapshotTimestampEpochMillisLessThanEqualOrderBySnapshotTimestampEpochMillisAsc(compactionCandidateUpperBound);
+        if (candidates.isEmpty()) {
+            return new SnapshotCompactionResult(0, 0, 0);
+        }
+
+        Map<Long, UUID> minuteKeepers = new LinkedHashMap<>();
+        Map<Long, UUID> twoHourKeepers = new LinkedHashMap<>();
+        Map<Long, UUID> dailyKeepers = new LinkedHashMap<>();
+        List<UUID> toDelete = new ArrayList<>();
+
+        for (MarketSnapshotEntity entity : candidates) {
+            long snapshotMillis = entity.getSnapshotTimestampEpochMillis();
+            long ageSeconds = Math.max(0L, (nowMillis - snapshotMillis) / 1_000L);
+
+            if (ageSeconds <= MINUTE_TIER_UPPER_SECONDS) {
+                long slot = Math.floorDiv(snapshotMillis, MINUTE_INTERVAL_MILLIS);
+                if (minuteKeepers.putIfAbsent(slot, entity.getId()) != null) {
+                    toDelete.add(entity.getId());
+                }
+                continue;
+            }
+
+            if (ageSeconds <= TWO_HOUR_TIER_UPPER_SECONDS) {
+                long slot = Math.floorDiv(snapshotMillis, TWO_HOUR_INTERVAL_MILLIS);
+                if (twoHourKeepers.putIfAbsent(slot, entity.getId()) != null) {
+                    toDelete.add(entity.getId());
+                }
+                continue;
+            }
+
+            long epochDay = Math.floorDiv(snapshotMillis / 1_000L, SECONDS_PER_DAY);
+            if (dailyKeepers.putIfAbsent(epochDay, entity.getId()) != null) {
+                toDelete.add(entity.getId());
+            }
+        }
+
+        if (!toDelete.isEmpty()) {
+            marketSnapshotRepository.deleteAllByIdInBatch(toDelete);
+        }
+
+        int keptCount = candidates.size() - toDelete.size();
+        return new SnapshotCompactionResult(candidates.size(), toDelete.size(), keptCount);
+    }
+
     private MarketSnapshot toDomain(MarketSnapshotEntity entity) {
         try {
             List<AuctionMarketRecord> auctions = objectMapper.readValue(entity.getAuctionsJson(), AUCTIONS_TYPE);
@@ -80,5 +144,12 @@ public class MarketSnapshotPersistenceService {
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to deserialize market snapshot from persistence.", e);
         }
+    }
+
+    public record SnapshotCompactionResult(
+            int scannedCount,
+            int deletedCount,
+            int keptCount
+    ) {
     }
 }

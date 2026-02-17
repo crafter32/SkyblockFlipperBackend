@@ -43,6 +43,23 @@ public class SourceJobs {
         }
     }
 
+    @Scheduled(fixedDelayString = "30000")
+    public void compactSnapshots() {
+        try {
+            var result = marketDataProcessingService.compactSnapshots();
+            if (result.deletedCount() > 0) {
+                log.info(
+                        "Compacted market snapshots: scanned={}, kept={}, deleted={}",
+                        result.scannedCount(),
+                        result.keptCount(),
+                        result.deletedCount()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to compact market snapshots: {}", ExceptionUtils.getStackTrace(e));
+        }
+    }
+
     @Scheduled(cron = "0 0 2 * * *", zone = "Europe/Vienna")
     public void copyRepoDaily() {
         try {
