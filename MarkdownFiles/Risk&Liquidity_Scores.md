@@ -87,9 +87,9 @@ This guarantees deterministic daily anchors without requiring a midnight-exact p
 
 ### 3. Guardrails
 
-- Do not use `LocalDate.now()` for day semantics.
-- Do not use `ZonedDateTime.systemDefault()`.
-- Do not use location timezones such as `Europe/Vienna`.
+- Avoid using `LocalDate.now()` for day semantics.
+- Do not rely on `ZonedDateTime.systemDefault()`.
+- Avoid location-specific timezones such as `Europe/Vienna`.
 - Use only `Instant` epoch-seconds day bucketing.
 
 ---
