@@ -29,6 +29,14 @@ public class InstrumentationAdminController {
     private final JfrBlockingReportService jfrBlockingReportService;
     private final InstrumentationProperties properties;
 
+    /**
+     * Creates the controller that exposes admin instrumentation endpoints.
+     *
+     * @param adminAccessGuard validates admin access for incoming requests
+     * @param jfrRecordingManager handles JFR recording operations (snapshots and latest recordings)
+     * @param jfrBlockingReportService generates summaries/reports from JFR data
+     * @param properties instrumentation configuration (including async-profiler settings)
+     */
     public InstrumentationAdminController(AdminAccessGuard adminAccessGuard,
                                           JfrRecordingManager jfrRecordingManager,
                                           JfrBlockingReportService jfrBlockingReportService,
@@ -39,6 +47,14 @@ public class InstrumentationAdminController {
         this.properties = properties;
     }
 
+    /**
+     * Creates a JFR snapshot and returns metadata about the created file.
+     *
+     * @param request the incoming HTTP request (used for access validation)
+     * @return a map with entries:
+     *         "snapshot" — the file system path of the created snapshot as a string;
+     *         "createdAt" — the snapshot creation timestamp as an ISO-8601 string
+     */
     @PostMapping("/jfr/snapshot")
     public Map<String, Object> dumpSnapshot(HttpServletRequest request) {
         adminAccessGuard.validate(request);
@@ -46,12 +62,30 @@ public class InstrumentationAdminController {
         return Map.of("snapshot", dump.toString(), "createdAt", Instant.now().toString());
     }
 
+    /**
+     * Return a summarized report for the latest Java Flight Recorder (JFR) recording.
+     *
+     * @param request the incoming HTTP request; used to validate admin access
+     * @return a map containing the report produced by summarizing the latest JFR recording
+     */
     @GetMapping("/jfr/report/latest")
     public Map<String, Object> latestReport(HttpServletRequest request) {
         adminAccessGuard.validate(request);
         return jfrBlockingReportService.summarize(jfrRecordingManager.latestRecordingFile());
     }
 
+    /**
+     * Run the configured async-profiler integration and return execution results and generated artifacts.
+     *
+     * @param request HTTP request used to validate admin access
+     * @return a map with keys:
+     *         <ul>
+     *           <li>"status" — the string "completed"</li>
+     *           <li>"latestArtifacts" — a list of up to three newest artifact file paths (strings)</li>
+     *           <li>"scriptOutput" — the complete textual output produced by the profiler script</li>
+     *         </ul>
+     * @throws ResponseStatusException HTTP 404 when async-profiler integration is disabled; HTTP 500 for I/O errors, interrupted execution, or when the profiler script exits with a non-zero status
+     */
     @PostMapping("/async-profiler/run")
     public Map<String, Object> runAsyncProfiler(HttpServletRequest request) {
         adminAccessGuard.validate(request);

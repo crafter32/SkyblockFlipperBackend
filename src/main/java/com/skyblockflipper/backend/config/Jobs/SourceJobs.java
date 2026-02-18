@@ -26,6 +26,12 @@ public class SourceJobs {
     private final MarketDataProcessingService marketDataProcessingService;
     private final CycleInstrumentationService cycleInstrumentationService;
 
+    /**
+     * Create a SourceJobs instance and wire required dependencies.
+     *
+     * All parameters are injected dependencies used for NEU integration, item mapping/persistence,
+     * market data processing, and cycle instrumentation.
+     */
     @Autowired
     public SourceJobs(NEUClient neuClient,
                       NEUItemMapper neuItemMapper,
@@ -39,6 +45,11 @@ public class SourceJobs {
         this.cycleInstrumentationService = cycleInstrumentationService;
     }
 
+    /**
+     * Polls the NEU API to capture the current market snapshot and persist prepared input, while recording cycle instrumentation.
+     *
+     * <p>If the capture and preparation succeed, the cycle is marked successful; on failure a warning is logged and the cycle is marked failed.
+     */
     @Scheduled(fixedDelayString = "5000")
     public void pollApi() {
         CycleContext context = cycleInstrumentationService.startCycle();

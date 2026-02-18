@@ -29,10 +29,25 @@ public class HypixelClient {
     private final BlockingTimeTracker blockingTimeTracker;
 
 
+    /**
+     * Convenience constructor that creates a HypixelClient using a default BlockingTimeTracker.
+     *
+     * @param apiUrl the base URL for the Hypixel API
+     * @param apiKey the API key to include in requests; may be null or blank to perform unauthenticated requests
+     */
     public HypixelClient(String apiUrl, String apiKey) {
         this(apiUrl, apiKey, new BlockingTimeTracker(new com.skyblockflipper.backend.instrumentation.InstrumentationProperties()));
     }
 
+    /**
+     * Create a HypixelClient configured with the given API base URL, API key, and blocking time tracker.
+     *
+     * Initializes the internal HTTP client and stores the API key and blocking time tracker for instrumented requests.
+     *
+     * @param apiUrl              the base URL of the Hypixel API
+     * @param apiKey              the API key to send with requests; may be empty if unauthenticated access is desired
+     * @param blockingTimeTracker instrumentation utility used to record and control blocking request execution time
+     */
     @Autowired
     public HypixelClient(
             @Value("${config.hypixel.api-url}") String apiUrl,
@@ -44,6 +59,14 @@ public class HypixelClient {
         this.blockingTimeTracker = blockingTimeTracker;
     }
 
+    /**
+     * Retrieves the auctions for a specific page.
+     *
+     * Fetches the auctions at the specified zero-based page index and returns the parsed response when the request succeeds.
+     *
+     * @param page zero-based page index to fetch (0 is the first page)
+     * @return the AuctionResponse for the requested page if the request succeeded and the response indicates success, `null` otherwise
+     */
     public AuctionResponse fetchAuctionPage(int page) {
         AuctionResponse result = request(
                 "/skyblock/auctions?page=" + page,
@@ -123,6 +146,13 @@ public class HypixelClient {
         log.info(new ObjectMapper().writeValueAsString(result.getLastUpdated()));
     }
 
+    /**
+     * Perform a GET request to the given URI and parse the response into the specified type.
+     *
+     * @param uri the request URI (path relative to the client's base URL)
+     * @param responseType a ParameterizedTypeReference describing the expected response type
+     * @return the parsed response of type T, or `null` if the request failed (for example due to HTTP errors or other client errors)
+     */
     private <T> T request(String uri, ParameterizedTypeReference<T> responseType) {
         try {
             RestClient.RequestHeadersSpec<?> request = restClient.get().uri(uri);

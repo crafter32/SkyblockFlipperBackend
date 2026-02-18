@@ -37,6 +37,12 @@ public class MarketSnapshotPersistenceService {
     private final ObjectMapper objectMapper;
     private final BlockingTimeTracker blockingTimeTracker;
 
+    /**
+     * Creates a MarketSnapshotPersistenceService using a default BlockingTimeTracker.
+     *
+     * Initializes the service with the provided repository and object mapper and constructs a new
+     * BlockingTimeTracker configured with default InstrumentationProperties.
+     */
     public MarketSnapshotPersistenceService(MarketSnapshotRepository marketSnapshotRepository,
                                             ObjectMapper objectMapper) {
         this(marketSnapshotRepository,
@@ -44,6 +50,13 @@ public class MarketSnapshotPersistenceService {
                 new BlockingTimeTracker(new com.skyblockflipper.backend.instrumentation.InstrumentationProperties()));
     }
 
+    /**
+     * Creates a MarketSnapshotPersistenceService using the given repository, JSON mapper, and blocking time tracker.
+     *
+     * @param marketSnapshotRepository repository used to persist and query market snapshot entities
+     * @param objectMapper Jackson ObjectMapper for serializing and deserializing snapshot payloads
+     * @param blockingTimeTracker tracker used to record durations of blocking repository operations
+     */
     @Autowired
     public MarketSnapshotPersistenceService(MarketSnapshotRepository marketSnapshotRepository,
                                             ObjectMapper objectMapper,
@@ -53,6 +66,13 @@ public class MarketSnapshotPersistenceService {
         this.blockingTimeTracker = blockingTimeTracker;
     }
 
+    /**
+     * Persist the given market snapshot and return the snapshot reconstructed from the saved entity.
+     *
+     * @param snapshot the market snapshot to persist
+     * @return the persisted MarketSnapshot reconstructed from the stored entity
+     * @throws IllegalStateException if serialization of the snapshot to JSON fails
+     */
     public MarketSnapshot save(MarketSnapshot snapshot) {
         try {
             MarketSnapshotEntity entity = new MarketSnapshotEntity(
@@ -69,10 +89,21 @@ public class MarketSnapshotPersistenceService {
         }
     }
 
+    /**
+     * Retrieve the most recently persisted market snapshot.
+     *
+     * @return an Optional containing the most recent MarketSnapshot if present, otherwise empty
+     */
     public Optional<MarketSnapshot> latest() {
         return blockingTimeTracker.record("db.marketSnapshot.latest", "db", () -> marketSnapshotRepository.findTopByOrderBySnapshotTimestampEpochMillisDesc().map(this::toDomain));
     }
 
+    /**
+     * Retrieve the most recent market snapshot whose timestamp is less than or equal to the provided instant.
+     *
+     * @param asOfTimestamp the instant to query snapshots up to; if `null`, delegates to {@code latest()}.
+     * @return an {@code Optional} containing the matching {@link MarketSnapshot} if one exists, or an empty {@code Optional} otherwise.
+     */
     public Optional<MarketSnapshot> asOf(Instant asOfTimestamp) {
         if (asOfTimestamp == null) {
             return latest();
@@ -82,6 +113,14 @@ public class MarketSnapshotPersistenceService {
                 .map(this::toDomain));
     }
 
+    /**
+     * Retrieve market snapshots with timestamps between two instants (inclusive), ordered by timestamp ascending.
+     *
+     * @param fromInclusive the lower bound instant (inclusive); if null the method returns an empty list
+     * @param toInclusive   the upper bound instant (inclusive); if null the method returns an empty list
+     * @return a list of MarketSnapshot objects whose timestamps are within the given inclusive range,
+     *         ordered by snapshot timestamp from oldest to newest; returns an empty list for invalid bounds
+     */
     public List<MarketSnapshot> between(Instant fromInclusive, Instant toInclusive) {
         if (fromInclusive == null || toInclusive == null || fromInclusive.isAfter(toInclusive)) {
             return List.of();
@@ -96,10 +135,24 @@ public class MarketSnapshotPersistenceService {
                 .toList());
     }
 
+    /**
+     * Compacts stored market snapshots using the current time as the reference point.
+     *
+     * @return SnapshotCompactionResult containing the counts of scanned snapshots, deleted snapshots, and kept snapshots after compaction
+     */
     public SnapshotCompactionResult compactSnapshots() {
         return compactSnapshots(Instant.now());
     }
 
+    /**
+     * Compacts stored market snapshots older than the raw-data window by pruning redundant entries across minute, two-hour, and daily tiers.
+     *
+     * @param now the reference time used to determine snapshot ages; if `null`, the current instant is used
+     * @return a SnapshotCompactionResult whose fields describe the operation:
+     *         scannedCount — number of candidate snapshots examined;
+     *         deletedCount — number of snapshots removed;
+     *         keptCount — number of snapshots retained
+     */
     public SnapshotCompactionResult compactSnapshots(Instant now) {
         Instant safeNow = now == null ? Instant.now() : now;
         long nowMillis = safeNow.toEpochMilli();

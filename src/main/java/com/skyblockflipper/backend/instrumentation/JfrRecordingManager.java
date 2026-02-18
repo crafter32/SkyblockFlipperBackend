@@ -25,10 +25,28 @@ public class JfrRecordingManager {
     private Recording snapshotRingRecording;
     private final InstrumentationProperties properties;
 
+    /**
+     * Creates a JfrRecordingManager configured with the provided instrumentation properties.
+     *
+     * @param properties configuration used to control JFR behavior (output directory, retention window,
+     *                   snapshot window, max size and enablement)
+     */
     public JfrRecordingManager(InstrumentationProperties properties) {
         this.properties = properties;
     }
 
+    /**
+     * Initializes and starts the JFR continuous and snapshot-ring recordings using the configured
+     * InstrumentationProperties.
+     *
+     * <p>Sets the JFR stack depth system property, ensures the configured output directory exists,
+     * creates and starts a long-running continuous recording and a snapshot-ring recording with
+     * configured retention windows and max sizes, and enables the blocking-related JFR events
+     * used by the manager.</p>
+     *
+     * <p>On success this method leaves {@code continuousRecording} and {@code snapshotRingRecording}
+     * running; on failure it logs a warning and leaves recordings unset or unchanged.</p>
+     */
     @PostConstruct
     public void start() {
         if (!properties.getJfr().isEnabled()) {
@@ -67,6 +85,12 @@ public class JfrRecordingManager {
         }
     }
 
+    /**
+     * Dump the current snapshot-ring recording to a timestamped .jfr file and return its path.
+     *
+     * @return the path to the written .jfr snapshot file
+     * @throws IllegalStateException if the snapshot-ring recording is not running or if an I/O error prevents writing the file
+     */
     public synchronized Path dumpSnapshot() {
         if (snapshotRingRecording == null) {
             throw new IllegalStateException("JFR snapshot recording is not running");
@@ -84,6 +108,11 @@ public class JfrRecordingManager {
         }
     }
 
+    /**
+     * Locate the most recently modified `.jfr` file in the configured JFR output directory.
+     *
+     * @return the path to the most recently modified `.jfr` file, or `null` if no `.jfr` files are present or an I/O error occurs
+     */
     public synchronized Path latestRecordingFile() {
         try {
             System.setProperty("jdk.jfr.stackdepth", Integer.toString(properties.getJfr().getStackDepth()));
@@ -98,6 +127,12 @@ public class JfrRecordingManager {
         }
     }
 
+    /**
+     * Deletes `.jfr` files in the configured JFR output directory that are older than the configured retention period.
+     *
+     * The method does nothing if JFR is disabled in the configuration. IO errors encountered while listing or
+     * deleting files are ignored. This method is intended to be invoked periodically (scheduled).
+     */
     @Scheduled(fixedDelayString = "PT10M")
     public void cleanupOldRecordings() {
         if (!properties.getJfr().isEnabled()) {
@@ -120,6 +155,14 @@ public class JfrRecordingManager {
         }
     }
 
+    /**
+     * Enables a predefined set of JFR events on the given recording for capturing blocking, I/O,
+     * garbage collection, CPU load, and execution-sampling diagnostics.
+     *
+     * Most enabled events will include stack traces; `jdk.CPULoad` is enabled without a stack trace.
+     *
+     * @param recording the JFR Recording to configure
+     */
     private void configureBlockingEvents(Recording recording) {
         recording.enable("jdk.JavaMonitorBlocked").withStackTrace();
         recording.enable("jdk.ThreadPark").withStackTrace();
@@ -133,12 +176,23 @@ public class JfrRecordingManager {
         recording.enable("jdk.ExecutionSample").withStackTrace();
     }
 
+    /**
+     * Ensures the configured JFR output directory exists and returns its path.
+     *
+     * @return the path to the JFR output directory
+     * @throws IOException if the directory cannot be created
+     */
     private Path ensureOutputDir() throws IOException {
         Path outputDir = properties.getJfr().getOutputDir();
         Files.createDirectories(outputDir);
         return outputDir;
     }
 
+    /**
+     * Stops and closes any active JFR recordings managed by this component.
+     *
+     * If a continuous or snapshot-ring recording exists, it will be stopped and closed to release resources.
+     */
     @PreDestroy
     public void stop() {
         if (continuousRecording != null) {

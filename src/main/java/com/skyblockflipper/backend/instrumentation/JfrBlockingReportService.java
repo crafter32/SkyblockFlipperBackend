@@ -18,6 +18,20 @@ public class JfrBlockingReportService {
 
     private static final int STACK_DEPTH = 12;
 
+    /**
+     * Produces a summary report of blocking, I/O wait, and CPU metrics from a Java Flight Recorder (JFR) file.
+     *
+     * The returned map contains either a single `"error"` entry with a message on failure, or the following keys:
+     * - `"recordingFile"`: the input path as a string
+     * - `"topBlockingStacks"`: a map of stack-key to duration in milliseconds for top blocking stacks
+     * - `"topIoWaitStacks"`: a map of stack-key to duration in milliseconds for top I/O wait stacks
+     * - `"blockedMillis"`: total time spent blocked in milliseconds
+     * - `"cpuMillis"`: total CPU-sampled time in milliseconds
+     * - `"blockedToCpuRatio"`: the ratio `blockedNanos / cpuNanos` as a `double`, or the string `"n/a"` if CPU time is zero
+     *
+     * @param recordingFile the path to the JFR recording file to analyze; may be null
+     * @return a map containing the summary report or an `"error"` entry describing a failure
+     */
     public Map<String, Object> summarize(Path recordingFile) {
         if (recordingFile == null) {
             return Map.of("error", "No JFR recording file available");
@@ -58,11 +72,28 @@ public class JfrBlockingReportService {
         return result;
     }
 
+    /**
+     * Get the duration of a RecordedEvent expressed in nanoseconds.
+     *
+     * @param event the RecordedEvent whose duration to read
+     * @return `0` if the event has no duration, otherwise the duration in nanoseconds
+     */
     private long durationNanos(RecordedEvent event) {
         Duration duration = event.getDuration();
         return duration == null ? 0L : duration.toNanos();
     }
 
+    /**
+     * Constructs a compact string key representing the top frames of a recorded stack trace.
+     *
+     * If the provided trace is null or contains no frames, returns "<no-stack>". Otherwise,
+     * formats up to {@code STACK_DEPTH} frames as {@code TypeName.MethodName} joined with
+     * " <- " in call order.
+     *
+     * @param stackTrace the recorded stack trace to format
+     * @return "<no-stack>" if {@code stackTrace} is null or has no frames, otherwise a concatenation
+     *         of up to {@code STACK_DEPTH} frames in "TypeName.MethodName" order separated by " <- "
+     */
     private String stackKey(RecordedStackTrace stackTrace) {
         if (stackTrace == null || stackTrace.getFrames().isEmpty()) {
             return "<no-stack>";
@@ -74,6 +105,13 @@ public class JfrBlockingReportService {
                 .orElse("<unknown>");
     }
 
+    /**
+     * Produce a LinkedHashMap of up to `n` entries from `source` with the largest values, sorted in descending order and converted from nanoseconds to milliseconds.
+     *
+     * @param source a map whose values are durations in nanoseconds
+     * @param n the maximum number of entries to include
+     * @return a LinkedHashMap preserving order of the top entries with values expressed in milliseconds
+     */
     private Map<String, Long> topN(Map<String, Long> source, int n) {
         return source.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()))
