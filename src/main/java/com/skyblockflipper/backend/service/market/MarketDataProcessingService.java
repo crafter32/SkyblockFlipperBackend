@@ -60,12 +60,12 @@ public class MarketDataProcessingService {
         long pullHttpStart = cycleInstrumentationService.startPhase();
         AuctionResponse auctionResponse = hypixelClient.fetchAllAuctionPages();
         BazaarResponse bazaarResponse = hypixelClient.fetchBazaar();
+        boolean hasAnyPayload = auctionResponse != null || bazaarResponse != null;
         long payloadBytes = estimatePayload(auctionResponse, bazaarResponse);
-        cycleInstrumentationService.endPhase("pull_http", pullHttpStart, true, payloadBytes);
+        cycleInstrumentationService.endPhase("pull_http", pullHttpStart, hasAnyPayload, payloadBytes);
 
         long deserializeStart = cycleInstrumentationService.startPhase();
-        boolean hasAnyPayload = auctionResponse != null || bazaarResponse != null;
-        cycleInstrumentationService.endPhase("validate_response", deserializeStart, hasAnyPayload, payloadBytes);
+        cycleInstrumentationService.endPhase("deserialize", deserializeStart, hasAnyPayload, payloadBytes);
 
         if (!hasAnyPayload) {
             log.warn("Both auction and bazaar responses are null, returning empty");
