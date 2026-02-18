@@ -14,6 +14,11 @@ config:
   hypixel:
     api-url: ${CONFIG_HYPIXEL_API_URL:https://api.hypixel.net/v2}
     api-key: ${CONFIG_HYPIXEL_API_KEY:}
+    polling:
+      auctions-base-interval: ${CONFIG_HYPIXEL_POLL_AUCTIONS_BASE_INTERVAL:PT60S}
+      bazaar-base-interval: ${CONFIG_HYPIXEL_POLL_BAZAAR_BASE_INTERVAL:PT20S}
+      max-interval-multiplier: ${CONFIG_HYPIXEL_POLL_MAX_INTERVAL_MULTIPLIER:2}
+      retry-interval: ${CONFIG_HYPIXEL_POLL_RETRY_INTERVAL:PT10S}
   NEU:
     repo-url: ${CONFIG_NEU_REPO_URL:https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO}
     refresh-days: ${CONFIG_NEU_REFRESH_DAYS:1}

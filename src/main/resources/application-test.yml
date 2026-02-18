@@ -11,6 +11,11 @@ spring:
 config:
   hypixel:
     api-url: https://api.hypixel.net/v2
+    polling:
+      auctions-base-interval: PT60S
+      bazaar-base-interval: PT20S
+      max-interval-multiplier: 2
+      retry-interval: PT10S
   NEU:
     repo-url: https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO
     refresh-days: 1

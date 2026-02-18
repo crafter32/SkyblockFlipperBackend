@@ -8,22 +8,45 @@ import com.skyblockflipper.backend.instrumentation.CycleInstrumentationService;
 import com.skyblockflipper.backend.model.market.MarketSnapshot;
 import com.skyblockflipper.backend.service.flipping.UnifiedFlipInputMapper;
 import com.skyblockflipper.backend.model.market.UnifiedFlipInputSnapshot;
-import lombok.extern.slf4j.Slf4j;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Optional;
 
 @Service
 @Slf4j
 public class MarketDataProcessingService {
 
+    private static final Duration DEFAULT_AUCTION_BASE_INTERVAL = Duration.ofSeconds(60);
+    private static final Duration DEFAULT_BAZAAR_BASE_INTERVAL = Duration.ofSeconds(20);
+    private static final Duration DEFAULT_RETRY_INTERVAL = Duration.ofSeconds(10);
+    private static final long DEFAULT_MAX_INTERVAL_MULTIPLIER = 2L;
+    private static final long MIN_ADAPTIVE_STEP_MILLIS = 5_000L;
+
     private final HypixelClient hypixelClient;
     private final HypixelMarketSnapshotMapper marketSnapshotMapper;
     private final MarketSnapshotPersistenceService marketSnapshotPersistenceService;
     private final UnifiedFlipInputMapper unifiedFlipInputMapper;
     private final CycleInstrumentationService cycleInstrumentationService;
+    private final long auctionBaseIntervalMillis;
+    private final long bazaarBaseIntervalMillis;
+    private final long auctionMaxIntervalMillis;
+    private final long bazaarMaxIntervalMillis;
+    private final long retryIntervalMillis;
+    private final Object pollStateLock = new Object();
+
+    private AuctionResponse cachedAuctionResponse;
+    private BazaarResponse cachedBazaarResponse;
+    private long nextAuctionFetchAtMillis;
+    private long nextBazaarFetchAtMillis;
+    private long auctionCurrentIntervalMillis;
+    private long bazaarCurrentIntervalMillis;
+    private long lastAuctionLastUpdated = -1L;
+    private long lastBazaarLastUpdated = -1L;
 
     public MarketDataProcessingService(HypixelClient hypixelClient,
                                        HypixelMarketSnapshotMapper marketSnapshotMapper,
@@ -36,7 +59,11 @@ public class MarketDataProcessingService {
                 new CycleInstrumentationService(
                         new SimpleMeterRegistry(),
                         new com.skyblockflipper.backend.instrumentation.BlockingTimeTracker(
-                                new com.skyblockflipper.backend.instrumentation.InstrumentationProperties())));
+                                new com.skyblockflipper.backend.instrumentation.InstrumentationProperties())),
+                DEFAULT_AUCTION_BASE_INTERVAL,
+                DEFAULT_BAZAAR_BASE_INTERVAL,
+                DEFAULT_MAX_INTERVAL_MULTIPLIER,
+                DEFAULT_RETRY_INTERVAL);
     }
 
     @Autowired
@@ -44,12 +71,29 @@ public class MarketDataProcessingService {
                                        HypixelMarketSnapshotMapper marketSnapshotMapper,
                                        MarketSnapshotPersistenceService marketSnapshotPersistenceService,
                                        UnifiedFlipInputMapper unifiedFlipInputMapper,
-                                       CycleInstrumentationService cycleInstrumentationService) {
+                                       CycleInstrumentationService cycleInstrumentationService,
+                                       @Value("${config.hypixel.polling.auctions-base-interval:PT60S}") Duration auctionBaseInterval,
+                                       @Value("${config.hypixel.polling.bazaar-base-interval:PT20S}") Duration bazaarBaseInterval,
+                                       @Value("${config.hypixel.polling.max-interval-multiplier:2}") long maxIntervalMultiplier,
+                                       @Value("${config.hypixel.polling.retry-interval:PT10S}") Duration retryInterval) {
         this.hypixelClient = hypixelClient;
         this.marketSnapshotMapper = marketSnapshotMapper;
         this.marketSnapshotPersistenceService = marketSnapshotPersistenceService;
         this.unifiedFlipInputMapper = unifiedFlipInputMapper;
         this.cycleInstrumentationService = cycleInstrumentationService;
+        this.auctionBaseIntervalMillis = sanitizeDuration(auctionBaseInterval, DEFAULT_AUCTION_BASE_INTERVAL);
+        this.bazaarBaseIntervalMillis = sanitizeDuration(bazaarBaseInterval, DEFAULT_BAZAAR_BASE_INTERVAL);
+        long safeMultiplier = Math.max(1L, maxIntervalMultiplier);
+        this.auctionMaxIntervalMillis = this.auctionBaseIntervalMillis * safeMultiplier;
+        this.bazaarMaxIntervalMillis = this.bazaarBaseIntervalMillis * safeMultiplier;
+        this.retryIntervalMillis = sanitizeDuration(retryInterval, DEFAULT_RETRY_INTERVAL);
+        this.auctionCurrentIntervalMillis = this.auctionBaseIntervalMillis;
+        this.bazaarCurrentIntervalMillis = this.bazaarBaseIntervalMillis;
+    }
+
+    private static long sanitizeDuration(Duration configured, Duration fallback) {
+        Duration safeDuration = configured == null || configured.isNegative() || configured.isZero() ? fallback : configured;
+        return safeDuration.toMillis();
     }
 
     public Optional<UnifiedFlipInputSnapshot> captureCurrentSnapshotAndPrepareInput() {
@@ -58,8 +102,9 @@ public class MarketDataProcessingService {
 
     public Optional<UnifiedFlipInputSnapshot> captureCurrentSnapshotAndPrepareInput(String cycleId) {
         long pullHttpStart = cycleInstrumentationService.startPhase();
-        AuctionResponse auctionResponse = hypixelClient.fetchAllAuctionPages();
-        BazaarResponse bazaarResponse = hypixelClient.fetchBazaar();
+        PollPayload payload = pollPayload();
+        AuctionResponse auctionResponse = payload.auctionResponse();
+        BazaarResponse bazaarResponse = payload.bazaarResponse();
         boolean hasAnyPayload = auctionResponse != null || bazaarResponse != null;
         long payloadBytes = estimatePayload(auctionResponse, bazaarResponse);
         cycleInstrumentationService.endPhase("pull_http", pullHttpStart, hasAnyPayload, payloadBytes);
@@ -100,9 +145,91 @@ public class MarketDataProcessingService {
         return marketSnapshotPersistenceService.compactSnapshots();
     }
 
+    private PollPayload pollPayload() {
+        synchronized (pollStateLock) {
+            long now = System.currentTimeMillis();
+            maybeRefreshAuctions(now);
+            maybeRefreshBazaar(now);
+            return new PollPayload(cachedAuctionResponse, cachedBazaarResponse);
+        }
+    }
+
+    private void maybeRefreshAuctions(long now) {
+        boolean shouldFetch = cachedAuctionResponse == null || now >= nextAuctionFetchAtMillis;
+        if (!shouldFetch) {
+            return;
+        }
+
+        AuctionResponse fetched;
+        try {
+            fetched = hypixelClient.fetchAllAuctionPages();
+        } catch (RuntimeException e) {
+            log.warn("Auction refresh failed, keeping cached payload: {}", e.getMessage());
+            fetched = null;
+        }
+        if (fetched == null) {
+            auctionCurrentIntervalMillis = growInterval(auctionCurrentIntervalMillis, auctionBaseIntervalMillis, auctionMaxIntervalMillis);
+            nextAuctionFetchAtMillis = now + Math.min(retryIntervalMillis, auctionCurrentIntervalMillis);
+            return;
+        }
+
+        cachedAuctionResponse = fetched;
+        long fetchedLastUpdated = fetched.getLastUpdated();
+        boolean advanced = fetchedLastUpdated > 0L && fetchedLastUpdated > lastAuctionLastUpdated;
+        auctionCurrentIntervalMillis = advanced
+                ? auctionBaseIntervalMillis
+                : growInterval(auctionCurrentIntervalMillis, auctionBaseIntervalMillis, auctionMaxIntervalMillis);
+        if (fetchedLastUpdated > 0L) {
+            lastAuctionLastUpdated = fetchedLastUpdated;
+        }
+        nextAuctionFetchAtMillis = now + auctionCurrentIntervalMillis;
+    }
+
+    private void maybeRefreshBazaar(long now) {
+        boolean shouldFetch = cachedBazaarResponse == null || now >= nextBazaarFetchAtMillis;
+        if (!shouldFetch) {
+            return;
+        }
+
+        BazaarResponse fetched;
+        try {
+            fetched = hypixelClient.fetchBazaar();
+        } catch (RuntimeException e) {
+            log.warn("Bazaar refresh failed, keeping cached payload: {}", e.getMessage());
+            fetched = null;
+        }
+        if (fetched == null) {
+            bazaarCurrentIntervalMillis = growInterval(bazaarCurrentIntervalMillis, bazaarBaseIntervalMillis, bazaarMaxIntervalMillis);
+            nextBazaarFetchAtMillis = now + Math.min(retryIntervalMillis, bazaarCurrentIntervalMillis);
+            return;
+        }
+
+        cachedBazaarResponse = fetched;
+        long fetchedLastUpdated = fetched.getLastUpdated();
+        boolean advanced = fetchedLastUpdated > 0L && fetchedLastUpdated > lastBazaarLastUpdated;
+        bazaarCurrentIntervalMillis = advanced
+                ? bazaarBaseIntervalMillis
+                : growInterval(bazaarCurrentIntervalMillis, bazaarBaseIntervalMillis, bazaarMaxIntervalMillis);
+        if (fetchedLastUpdated > 0L) {
+            lastBazaarLastUpdated = fetchedLastUpdated;
+        }
+        nextBazaarFetchAtMillis = now + bazaarCurrentIntervalMillis;
+    }
+
+    private long growInterval(long currentIntervalMillis, long baseIntervalMillis, long maxIntervalMillis) {
+        long step = Math.max(MIN_ADAPTIVE_STEP_MILLIS, baseIntervalMillis / 2L);
+        return Math.min(currentIntervalMillis + step, maxIntervalMillis);
+    }
+
     private long estimatePayload(AuctionResponse auctionResponse, BazaarResponse bazaarResponse) {
         long auctionCount = auctionResponse == null || auctionResponse.getAuctions() == null ? 0L : auctionResponse.getAuctions().size();
         long bazaarCount = bazaarResponse == null || bazaarResponse.getProducts() == null ? 0L : bazaarResponse.getProducts().size();
         return (auctionCount * 300L) + (bazaarCount * 200L);
+    }
+
+    private record PollPayload(
+            AuctionResponse auctionResponse,
+            BazaarResponse bazaarResponse
+    ) {
     }
 }

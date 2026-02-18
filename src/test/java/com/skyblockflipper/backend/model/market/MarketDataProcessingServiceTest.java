@@ -18,6 +18,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,5 +67,36 @@ class MarketDataProcessingServiceTest {
         when(client.fetchBazaar()).thenReturn(null);
 
         assertTrue(service.captureCurrentSnapshotAndPrepareInput().isEmpty());
+    }
+
+    @Test
+    void captureCurrentSnapshotAndPrepareInputUsesCachedPayloadWhenWithinCooldown() {
+        HypixelClient client = mock(HypixelClient.class);
+        HypixelMarketSnapshotMapper snapshotMapper = new HypixelMarketSnapshotMapper();
+        MarketSnapshotPersistenceService persistenceService = mock(MarketSnapshotPersistenceService.class);
+        UnifiedFlipInputMapper inputMapper = new UnifiedFlipInputMapper();
+        MarketDataProcessingService service = new MarketDataProcessingService(client, snapshotMapper, persistenceService, inputMapper);
+
+        Auction auction = new Auction(
+                "a-1", "auctioneer", "profile", List.of(), 1L, 2L,
+                "ENCHANTED_DIAMOND", "lore", "extra", "misc", "RARE",
+                100L, false, List.of(), 120L, List.of()
+        );
+        AuctionResponse auctionResponse = new AuctionResponse(true, 0, 1, 1, 10_000L, List.of(auction));
+        BazaarQuickStatus quickStatus = new BazaarQuickStatus(10.0, 9.0, 100, 90, 1000, 900, 4, 3);
+        BazaarProduct bazaarProduct = new BazaarProduct("ENCHANTED_DIAMOND", quickStatus, List.of(), List.of());
+        BazaarResponse bazaarResponse = new BazaarResponse(true, 11_000L, Map.of("ENCHANTED_DIAMOND", bazaarProduct));
+
+        when(client.fetchAllAuctionPages()).thenReturn(auctionResponse);
+        when(client.fetchBazaar()).thenReturn(bazaarResponse);
+        when(persistenceService.save(org.mockito.ArgumentMatchers.any(MarketSnapshot.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.captureCurrentSnapshotAndPrepareInput().orElseThrow();
+        service.captureCurrentSnapshotAndPrepareInput().orElseThrow();
+
+        verify(client, times(1)).fetchAllAuctionPages();
+        verify(client, times(1)).fetchBazaar();
+        verify(persistenceService, times(2)).save(org.mockito.ArgumentMatchers.any(MarketSnapshot.class));
     }
 }

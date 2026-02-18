@@ -7,8 +7,14 @@ It is aligned with `MarkdownFiles/Risk&Liquidity_Scores.md` and keeps its non-ne
 
 ## 1. Ingestion Cadence
 
-- Pull one market snapshot every `5` seconds.
-- Persist raw snapshots as they arrive.
+- Run the market ingestion loop every `5` seconds.
+- Persist one snapshot per loop tick.
+- Source HTTP fetching is adaptive and independent from snapshot cadence:
+  - Auctions: base fetch interval `60s`.
+  - Bazaar: base fetch interval `20s`.
+  - If `lastUpdated` does not advance, the endpoint fetch interval is increased up to a bounded maximum.
+  - If new data arrives, the endpoint fetch interval resets to its base interval.
+  - Intermediate 5s snapshots reuse the latest successful payload.
 
 ---
 
