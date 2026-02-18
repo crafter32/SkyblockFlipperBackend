@@ -28,9 +28,14 @@ Aktueller Stand (im Repository vorhanden):
   - Hypixel Auction API (einzelne Seite + Multi-Page Fetch).
   - Hypixel Bazaar API (`/skyblock/bazaar`) inkl. `quick_status` und Summary-Strukturen.
   - NEU-Item-Daten (Download/Refresh aus dem NotEnoughUpdates-Repo).
+- Market-Snapshot-Pipeline:
+  - Polling, Normalisierung, Persistenz, Retention-Compaction.
+  - Timescale-Feature-Berechnung für Risk-/Liquidity-Signale.
 - Geplante/angelegte Domain-Struktur für Flips mit:
   - `Flip`, `Step`, `Constraint`, `Recipe`.
   - Berechnung von Gesamt-/Aktiv-/Passivdauer pro Flip.
+- Unified-Flip-DTO-Mapping mit ROI, ROI/h, Fees, Required Capital, Liquidity Score, Risk Score und Partial-Flags.
+- Flip-Read-Endpoints sind vorhanden, aber die produktive Flip-Generierung/Persistenz (`flipRepository.save(...)`) fehlt aktuell noch.
 - Scheduling-Infrastruktur (ThreadPool + geplante Jobs).
 - Robuste Fehlerbehandlung im Hypixel-Client (HTTP/Netzwerkfehler werden geloggt).
 - `fetchAllAuctions()` arbeitet fail-fast bei unvollständigen Seitenabrufen, um keine leeren Marktzustände zu persistieren.
@@ -72,9 +77,9 @@ Aktueller Stand (im Repository vorhanden):
 
 ### Komponenten (vereinfacht)
 
-- **API Layer:** `StatusController`
+- **API Layer:** `StatusController`, `FlipController`, `ItemController`
 - **Source Jobs:** periodische Refresh-/Ingestion-Jobs (`SourceJobs`)
-- **Domain/Model:** Flips, Steps, Constraints, Recipes
+- **Domain/Model:** Flips, Steps, Constraints, Recipes, Market Snapshots
 - **Repositories:** `FlipRepository`, `RecipeRepository`, `ItemRepository`, etc.
 
 ## Unterstützte Flip-Typen
@@ -97,6 +102,22 @@ Aktueller Stand (im Repository vorhanden):
 - Fusion Flips
 
 > Hinweis: Aktuell sind im Code bereits die grundlegenden Flip-Domainobjekte vorhanden; die vollständige End-to-End-Abdeckung aller Ziel-Fliptypen ist als nächster Ausbauschritt zu sehen.
+
+## Coverage-Snapshot (Ist-Zustand)
+
+Status-Legende: `Done` = produktiver Codepfad vorhanden, `Partial` = teilweise vorhanden aber nicht vollständig verdrahtet, `Missing` = noch nicht implementiert.
+
+| Flip-Typ | Ingestion | Berechnung | Persistenz | API | Status |
+|----------|-----------|------------|------------|-----|--------|
+| Auction  | Done (Hypixel Auctions -> Snapshots) | Partial (funktioniert, wenn Flips existieren) | Missing (kein Flip-Writer-Job/Service) | Partial (`/api/v1/flips` read-only) | In Arbeit |
+| Bazaar   | Done (Hypixel Bazaar -> Snapshots) | Partial (funktioniert, wenn Flips existieren) | Missing (kein Flip-Writer-Job/Service) | Partial (`/api/v1/flips` read-only) | In Arbeit |
+| Craft    | Partial (NEU-Rezepte werden geparst/gespeichert) | Partial (Step-basiertes Mapping vorhanden) | Missing (kein Recipe->Flip-Persistenzfluss) | Missing (`/api/v1/recipes` fehlt) | In Arbeit |
+| Forge    | Partial (NEU-Forge-Rezepte werden geparst/gespeichert) | Partial (Duration-/Resource-Modell vorhanden) | Missing (kein Recipe->Flip-Persistenzfluss) | Missing (`/api/v1/recipes` fehlt) | In Arbeit |
+| Shard    | Missing | Missing | Missing | Missing | Nicht gestartet |
+| Fusion   | Missing (nur Enum) | Partial (generisches DTO unterstützt Typ) | Missing | Partial (`/api/v1/flips` liest, falls Rows existieren) | Nicht gestartet |
+
+Zusätzlicher Hinweis:
+- `KATGRADE` ist im Code als eigener Typ implementiert, steht aber nicht in der ursprünglichen Ziel-Tabelle.
 
 ## Unified Flip Schema (Kurzfassung)
 
@@ -148,6 +169,42 @@ Aktuell noch nicht als öffentliche Endpunkte verfügbar:
 - Deterministische Antworten pro Snapshot
 - Erweiterbar ohne Breaking Changes (deprecate-first)
 
+## Umsetzungs-Checklist (P0/P1)
+
+### P0 – Kritisch
+1. Produktive Flip-Generierung und Persistenz implementieren.
+- `src/main/java/com/skyblockflipper/backend/service/flipping/FlipGenerationService.java` anlegen, um persistierte Rezepte in konkrete `Flip`-Rows zu überführen.
+- `RecipeRepository`, `FlipRepository` und `RecipeToFlipMapper` in einem deterministischen Write-Flow verbinden.
+- Service in `src/main/java/com/skyblockflipper/backend/config/Jobs/SourceJobs.java` nach Snapshot-Refresh und/oder NEU-Refresh triggern.
+
+2. Snapshot-Bindung für generierte Flips einführen.
+- `src/main/java/com/skyblockflipper/backend/model/Flipping/Flip.java` um explizite Snapshot-Bindung erweitern (Timestamp oder Snapshot-Referenz).
+- `/api/v1/flips` deterministisch pro Snapshot machen statt rein "latest market + live election".
+- Query/Mapping in `src/main/java/com/skyblockflipper/backend/service/flipping/FlipReadService.java` anpassen.
+
+3. Fehlende Read-Endpunkte für Kernobjekte veröffentlichen.
+- `src/main/java/com/skyblockflipper/backend/api/RecipeController.java` ergänzen (`GET /api/v1/recipes`).
+- `src/main/java/com/skyblockflipper/backend/api/SnapshotController.java` ergänzen (`GET /api/v1/snapshots`, `GET /api/v1/snapshots/{timestamp}/flips`).
+- `src/main/java/com/skyblockflipper/backend/api/ItemController.java` um `GET /api/v1/items` erweitern.
+
+4. Ziellücke bei Shard-Flips schließen.
+- `SHARD` in `src/main/java/com/skyblockflipper/backend/model/Flipping/Enums/FlipType.java` ergänzen.
+- Ingestion-/Mapping-Regeln aus NEU/Hypixel ergänzen.
+- Typspezifische Tests in `src/test/java/com/skyblockflipper/backend/service/flipping` ergänzen.
+
+### P1 – Wichtig
+1. Expliziten As-Of-Kontext in der Flip-Berechnung unterstützen.
+- `src/main/java/com/skyblockflipper/backend/service/flipping/FlipCalculationContextService.java` um Snapshot-/As-Of-Lookup erweitern.
+- Optionale Snapshot-Query-Parameter in `src/main/java/com/skyblockflipper/backend/api/FlipController.java` ergänzen.
+
+2. Fee-/Tax-Logik in dedizierten Policy-Service auslagern.
+- Auction-/Bazaar-Tax-Logik aus `src/main/java/com/skyblockflipper/backend/service/flipping/UnifiedFlipDtoMapper.java` extrahieren.
+- `src/main/java/com/skyblockflipper/backend/service/flipping/FeePolicyService.java` (oder ähnlich) als zentrale Regelkomponente ergänzen.
+
+3. Contract-Tests für deterministische API-Ausgabe ausbauen.
+- Endpoint-Tests für snapshot-spezifische Reads in `src/test/java/com/skyblockflipper/backend/api` ergänzen.
+- Integrations-Tests für den End-to-End-Generate-Flow in `src/test/java/com/skyblockflipper/backend/service/flipping` ergänzen.
+
 ## Starten (Lokal & Docker)
 
 ### Voraussetzungen
@@ -191,15 +248,15 @@ Danach läuft der Service via `docker-compose.yml` auf Port `8080`.
 ## Roadmap (Kurz)
 
 ### P0 – Kritisch
-- Unified Flip DTO und stabile Read-API (`/api/v1/flips`, `/api/v1/flips/{id}`)
 - End-to-End Pipeline je Flip-Typ (Ingestion → Compute → Persist → Serve)
-- Katgrade als eigener Flip-Typ (nicht mit Crafting zusammengelegt)
-- Konsistente Profit-/Fee-Berechnung
+- Snapshot-gebundene deterministische Reads
+- Fehlende Kern-Read-Endpunkte (`/api/v1/items`, `/api/v1/recipes`, `/api/v1/snapshots`)
 
 ### P1 – Wichtig
-- Snapshot-System (zeitpunktgenaue Reproduzierbarkeit)
+- Explizite As-Of-/Snapshot-Selektoren in der Public API
 - Zeitgewichtete ROI-Kennzahlen (`ROI/h`, aktive vs. passive Zeit)
 - Kapitalbindungslogik und Ressourcen-Constraints (z. B. Forge-Slots)
+- Vereinheitlichte, zentralisierte Fee-/Tax-Policy
 
 ### P2 – Differenzierung
 - Liquidity Score + Risk Score

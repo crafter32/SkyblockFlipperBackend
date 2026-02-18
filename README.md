@@ -28,9 +28,14 @@ Currently implemented in this repository:
   - Hypixel Auction API (single page and multi-page fetch).
   - Hypixel Bazaar API (`/skyblock/bazaar`) including `quick_status` and summary structures.
   - NEU item data ingestion (download/refresh from the NotEnoughUpdates repo).
+- Market snapshot pipeline:
+  - polling, normalization, persistence, retention compaction.
+  - timescale feature extraction for risk/liquidity inputs.
 - Flip domain structure with:
   - `Flip`, `Step`, `Constraint`, `Recipe`.
   - total/active/passive duration calculation per flip.
+- Unified flip DTO mapping with ROI, ROI/h, fees, required capital, liquidity score, risk score, and partial-data flags.
+- Flip read endpoints are implemented, but production flip generation/persistence (`flipRepository.save(...)`) is still missing.
 - Scheduling infrastructure (thread pool + scheduled jobs).
 - Resilient Hypixel client behavior (HTTP/network failures are logged).
 - `fetchAllAuctions()` is fail-fast on incomplete page fetches to avoid persisting false empty market states.
@@ -72,9 +77,9 @@ Currently implemented in this repository:
 
 ### Components (Simplified)
 
-- **API layer:** `StatusController`
+- **API layer:** `StatusController`, `FlipController`, `ItemController`
 - **Source jobs:** scheduled refresh/ingestion jobs (`SourceJobs`)
-- **Domain/model:** flips, steps, constraints, recipes
+- **Domain/model:** flips, steps, constraints, recipes, market snapshots
 - **Repositories:** `FlipRepository`, `RecipeRepository`, `ItemRepository`, etc.
 
 ## Supported Flip Types
@@ -97,6 +102,22 @@ Currently implemented in this repository:
 - Fusion flips
 
 > Note: Core domain objects are already present; full end-to-end coverage for all target flip types is still in progress.
+
+## Coverage Snapshot (As-Is)
+
+Status legend: `Done` = implemented in production code path, `Partial` = available but not fully wired, `Missing` = not yet implemented.
+
+| Flip Type | Ingestion | Computation | Persistence | API | Status |
+|-----------|-----------|-------------|-------------|-----|--------|
+| Auction   | Done (Hypixel auctions -> snapshots) | Partial (works if flips exist) | Missing (no flip writer job/service) | Partial (`/api/v1/flips` read-only) | In progress |
+| Bazaar    | Done (Hypixel bazaar -> snapshots) | Partial (works if flips exist) | Missing (no flip writer job/service) | Partial (`/api/v1/flips` read-only) | In progress |
+| Craft     | Partial (NEU recipes parsed/stored with items) | Partial (step-based mapping exists) | Missing (no recipe->flip persistence flow) | Missing (`/api/v1/recipes` not exposed) | In progress |
+| Forge     | Partial (NEU forge recipes parsed/stored with items) | Partial (duration/resource model exists) | Missing (no recipe->flip persistence flow) | Missing (`/api/v1/recipes` not exposed) | In progress |
+| Shard     | Missing | Missing | Missing | Missing | Not started |
+| Fusion    | Missing (enum only) | Partial (generic DTO supports it) | Missing | Partial (`/api/v1/flips` can read if rows exist) | Not started |
+
+Additional note:
+- `KATGRADE` is implemented as a first-class type in code, but it is not listed in the original target table.
 
 ## Unified Flip Schema (Short)
 
@@ -147,6 +168,42 @@ Not exposed publicly yet:
 - Deterministic responses per snapshot
 - Extensible evolution without breaking changes (`deprecate-first`)
 
+## Implementation Checklist (P0/P1)
+
+### P0 - Critical
+1. Implement production flip generation and persistence.
+- Create `src/main/java/com/skyblockflipper/backend/service/flipping/FlipGenerationService.java` to map persisted recipes to concrete `Flip` rows.
+- Use `RecipeRepository`, `FlipRepository`, and `RecipeToFlipMapper` in one deterministic write flow.
+- Call the service from `src/main/java/com/skyblockflipper/backend/config/Jobs/SourceJobs.java` after market snapshot refresh and/or NEU refresh.
+
+2. Add snapshot binding for generated flips.
+- Extend `src/main/java/com/skyblockflipper/backend/model/Flipping/Flip.java` with explicit snapshot binding (timestamp or snapshot reference).
+- Keep `/api/v1/flips` deterministic per snapshot instead of "latest market + live election only".
+- Update mapping/query logic in `src/main/java/com/skyblockflipper/backend/service/flipping/FlipReadService.java`.
+
+3. Expose missing read endpoints for core entities.
+- Add `src/main/java/com/skyblockflipper/backend/api/RecipeController.java` (`GET /api/v1/recipes`).
+- Add `src/main/java/com/skyblockflipper/backend/api/SnapshotController.java` (`GET /api/v1/snapshots`, `GET /api/v1/snapshots/{timestamp}/flips`).
+- Extend `src/main/java/com/skyblockflipper/backend/api/ItemController.java` with `GET /api/v1/items`.
+
+4. Close target flip-type gap for shard flips.
+- Add `SHARD` to `src/main/java/com/skyblockflipper/backend/model/Flipping/Enums/FlipType.java`.
+- Add ingestion/mapping rules from NEU/Hypixel where relevant.
+- Add type-specific tests in `src/test/java/com/skyblockflipper/backend/service/flipping`.
+
+### P1 - Important
+1. Support explicit as-of context in flip calculation.
+- Extend `src/main/java/com/skyblockflipper/backend/service/flipping/FlipCalculationContextService.java` with snapshot/as-of lookup methods.
+- Add optional snapshot query params in `src/main/java/com/skyblockflipper/backend/api/FlipController.java`.
+
+2. Move fee/tax logic into a dedicated policy component.
+- Extract auction/bazaar tax logic from `src/main/java/com/skyblockflipper/backend/service/flipping/UnifiedFlipDtoMapper.java`.
+- Add `src/main/java/com/skyblockflipper/backend/service/flipping/FeePolicyService.java` (or similar) for consistent, testable rules.
+
+3. Strengthen contract tests for deterministic API output.
+- Add endpoint tests for snapshot-specific reads in `src/test/java/com/skyblockflipper/backend/api`.
+- Add integration tests for end-to-end generation flow in `src/test/java/com/skyblockflipper/backend/service/flipping`.
+
 ## Run (Local & Docker)
 
 ### Requirements
@@ -190,15 +247,15 @@ Service will then be available via `docker-compose.yml` on port `8080`.
 ## Roadmap (Short)
 
 ### P0 - Critical
-- Unified flip DTO and stable read API (`/api/v1/flips`, `/api/v1/flips/{id}`)
 - End-to-end pipeline per flip type (ingest -> compute -> persist -> serve)
-- Katgrade as its own flip type (not merged into generic crafting)
-- Consistent profit/fee computation
+- Snapshot-bound deterministic reads
+- Missing core read endpoints (`/api/v1/items`, `/api/v1/recipes`, `/api/v1/snapshots`)
 
 ### P1 - Important
-- Snapshot system (point-in-time reproducibility)
+- Explicit as-of/snapshot selectors in public API
 - Time-weighted metrics (`ROI/h`, active vs. passive time)
 - Capital lock-up and resource constraints (e.g. forge slots)
+- Unified, centralized fee/tax policy
 
 ### P2 - Differentiation
 - Liquidity and risk scoring
