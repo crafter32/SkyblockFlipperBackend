@@ -1,6 +1,7 @@
 package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.api.FlipCoverageDto;
+import com.skyblockflipper.backend.api.FlipSortBy;
 import com.skyblockflipper.backend.api.UnifiedFlipDto;
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Flip;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -250,6 +252,93 @@ class FlipReadServiceTest {
         assertTrue(result.flipTypes().stream().allMatch(type -> type.latestSnapshotCount() == 0L));
     }
 
+    @Test
+    void filterFlipsAppliesThresholdsAndSortsByLiquidity() {
+        FlipRepository flipRepository = mock(FlipRepository.class);
+        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
+        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
+        FlipReadService service = new FlipReadService(flipRepository, mapper, contextService);
+
+        Instant snapshotTimestamp = Instant.parse("2026-02-19T20:00:00Z");
+        FlipCalculationContext context = FlipCalculationContext.standard(null);
+        Flip flipA = mock(Flip.class);
+        Flip flipB = mock(Flip.class);
+        Flip flipC = mock(Flip.class);
+
+        when(flipRepository.findAllBySnapshotTimestampEpochMillis(snapshotTimestamp.toEpochMilli(), Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(flipA, flipB, flipC)));
+        when(contextService.loadContextAsOf(snapshotTimestamp)).thenReturn(context);
+
+        when(mapper.toDto(flipA, context)).thenReturn(sampleScoredDto(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), 95.0D, 10.0D, 2_000_000L));
+        when(mapper.toDto(flipB, context)).thenReturn(sampleScoredDto(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), 80.0D, 50.0D, 1_000_000L));
+        when(mapper.toDto(flipC, context)).thenReturn(sampleScoredDto(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"), 92.0D, 12.0D, 3_000_000L));
+
+        Page<UnifiedFlipDto> result = service.filterFlips(
+                null,
+                snapshotTimestamp,
+                90.0D,
+                20.0D,
+                1_000_000L,
+                0.5D,
+                1.0D,
+                5_000_000L,
+                false,
+                FlipSortBy.LIQUIDITY_SCORE,
+                Sort.Direction.DESC,
+                PageRequest.of(0, 10)
+        );
+
+        assertEquals(2, result.getTotalElements());
+        assertEquals(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), result.getContent().get(0).id());
+        assertEquals(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"), result.getContent().get(1).id());
+    }
+
+    @Test
+    void topLiquidityFlipsSortsDescendingLiquidity() {
+        FlipRepository flipRepository = mock(FlipRepository.class);
+        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
+        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
+        FlipReadService service = new FlipReadService(flipRepository, mapper, contextService);
+        FlipCalculationContext context = FlipCalculationContext.standard(null);
+
+        Flip flipA = mock(Flip.class);
+        Flip flipB = mock(Flip.class);
+        when(flipRepository.findAllByFlipType(FlipType.AUCTION, Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(flipA, flipB)));
+        when(contextService.loadCurrentContext()).thenReturn(context);
+        when(mapper.toDto(flipA, context)).thenReturn(sampleScoredDto(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"), 70.0D, 15.0D, 1_500_000L));
+        when(mapper.toDto(flipB, context)).thenReturn(sampleScoredDto(UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), 90.0D, 25.0D, 1_500_000L));
+
+        Page<UnifiedFlipDto> result = service.topLiquidityFlips(FlipType.AUCTION, null, PageRequest.of(0, 10));
+
+        assertEquals(2, result.getTotalElements());
+        assertEquals(UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), result.getContent().get(0).id());
+        assertEquals(UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"), result.getContent().get(1).id());
+    }
+
+    @Test
+    void lowestRiskFlipsSortsAscendingRisk() {
+        FlipRepository flipRepository = mock(FlipRepository.class);
+        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
+        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
+        FlipReadService service = new FlipReadService(flipRepository, mapper, contextService);
+        FlipCalculationContext context = FlipCalculationContext.standard(null);
+
+        Flip flipA = mock(Flip.class);
+        Flip flipB = mock(Flip.class);
+        when(flipRepository.findAllByFlipType(FlipType.BAZAAR, Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(flipA, flipB)));
+        when(contextService.loadCurrentContext()).thenReturn(context);
+        when(mapper.toDto(flipA, context)).thenReturn(sampleScoredDto(UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 60.0D, 8.0D, 1_500_000L));
+        when(mapper.toDto(flipB, context)).thenReturn(sampleScoredDto(UUID.fromString("99999999-9999-9999-9999-999999999999"), 95.0D, 4.0D, 1_500_000L));
+
+        Page<UnifiedFlipDto> result = service.lowestRiskFlips(FlipType.BAZAAR, null, PageRequest.of(0, 10));
+
+        assertEquals(2, result.getTotalElements());
+        assertEquals(UUID.fromString("99999999-9999-9999-9999-999999999999"), result.getContent().get(0).id());
+        assertEquals(UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), result.getContent().get(1).id());
+    }
+
     private UnifiedFlipDto sampleDto() {
         return new UnifiedFlipDto(
                 UUID.randomUUID(),
@@ -265,6 +354,28 @@ class FlipReadServiceTest {
                 null,
                 null,
                 Instant.now(),
+                false,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private UnifiedFlipDto sampleScoredDto(UUID id, Double liquidityScore, Double riskScore, Long expectedProfit) {
+        return new UnifiedFlipDto(
+                id,
+                FlipType.BAZAAR,
+                List.of(),
+                List.of(),
+                1_000_000L,
+                expectedProfit,
+                0.7D,
+                2.5D,
+                3_600L,
+                15_000L,
+                liquidityScore,
+                riskScore,
+                Instant.parse("2026-02-19T20:00:00Z"),
                 false,
                 List.of(),
                 List.of(),

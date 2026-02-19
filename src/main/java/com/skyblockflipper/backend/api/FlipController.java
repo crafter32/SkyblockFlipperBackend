@@ -5,6 +5,7 @@ import com.skyblockflipper.backend.service.flipping.FlipReadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,61 @@ public class FlipController {
             @PageableDefault(size = 50, sort = "id") Pageable pageable
     ) {
         return flipReadService.listFlips(flipType, snapshotTimestamp, pageable);
+    }
+
+    @GetMapping("/filter")
+    public Page<UnifiedFlipDto> filterFlips(
+            @RequestParam(required = false) FlipType flipType,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant snapshotTimestamp,
+            @RequestParam(required = false) Double minLiquidityScore,
+            @RequestParam(required = false) Double maxRiskScore,
+            @RequestParam(required = false) Long minExpectedProfit,
+            @RequestParam(required = false) Double minRoi,
+            @RequestParam(required = false) Double minRoiPerHour,
+            @RequestParam(required = false) Long maxRequiredCapital,
+            @RequestParam(required = false) Boolean partial,
+            @RequestParam(defaultValue = "EXPECTED_PROFIT") FlipSortBy sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDirection,
+            @PageableDefault(size = 50, sort = "id") Pageable pageable
+    ) {
+        return flipReadService.filterFlips(
+                flipType,
+                snapshotTimestamp,
+                minLiquidityScore,
+                maxRiskScore,
+                minExpectedProfit,
+                minRoi,
+                minRoiPerHour,
+                maxRequiredCapital,
+                partial,
+                sortBy,
+                sortDirection,
+                pageable
+        );
+    }
+
+    @GetMapping("/top/liquidity")
+    public Page<UnifiedFlipDto> topLiquidityFlips(
+            @RequestParam(required = false) FlipType flipType,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant snapshotTimestamp,
+            @PageableDefault(size = 50, sort = "id") Pageable pageable
+    ) {
+        return flipReadService.topLiquidityFlips(flipType, snapshotTimestamp, pageable);
+    }
+
+    @GetMapping("/top/low-risk")
+    public Page<UnifiedFlipDto> lowestRiskFlips(
+            @RequestParam(required = false) FlipType flipType,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant snapshotTimestamp,
+            @PageableDefault(size = 50, sort = "id") Pageable pageable
+    ) {
+        return flipReadService.lowestRiskFlips(flipType, snapshotTimestamp, pageable);
     }
 
     @GetMapping("/{id}")

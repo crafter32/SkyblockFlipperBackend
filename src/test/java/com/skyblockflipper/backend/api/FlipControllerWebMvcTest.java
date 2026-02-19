@@ -186,4 +186,110 @@ class FlipControllerWebMvcTest {
 
         verify(flipReadService, times(1)).flipTypeCoverage();
     }
+
+    @Test
+    void filterFlipsSupportsLiquidityAndRiskParams() throws Exception {
+        UUID flipId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UnifiedFlipDto dto = new UnifiedFlipDto(
+                flipId,
+                FlipType.BAZAAR,
+                List.of(),
+                List.of(),
+                500_000L,
+                250_000L,
+                0.5D,
+                3.0D,
+                1_200L,
+                3_000L,
+                89.5D,
+                12.0D,
+                Instant.parse("2026-02-19T20:00:00Z"),
+                false,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+
+        PageRequest expectedRequest = PageRequest.of(0, 5, Sort.by("id").ascending());
+        Page<UnifiedFlipDto> resultPage = new PageImpl<>(List.of(dto), expectedRequest, 1);
+        when(flipReadService.filterFlips(
+                eq(FlipType.BAZAAR),
+                eq(Instant.parse("2026-02-19T20:00:00Z")),
+                eq(80.0D),
+                eq(20.0D),
+                eq(100_000L),
+                eq(0.2D),
+                eq(1.0D),
+                eq(1_000_000L),
+                eq(false),
+                eq(FlipSortBy.LIQUIDITY_SCORE),
+                eq(Sort.Direction.DESC),
+                any(Pageable.class)
+        )).thenReturn(resultPage);
+
+        mockMvc.perform(get("/api/v1/flips/filter")
+                        .param("flipType", "BAZAAR")
+                        .param("snapshotTimestamp", "2026-02-19T20:00:00Z")
+                        .param("minLiquidityScore", "80.0")
+                        .param("maxRiskScore", "20.0")
+                        .param("minExpectedProfit", "100000")
+                        .param("minRoi", "0.2")
+                        .param("minRoiPerHour", "1.0")
+                        .param("maxRequiredCapital", "1000000")
+                        .param("partial", "false")
+                        .param("sortBy", "LIQUIDITY_SCORE")
+                        .param("sortDirection", "DESC")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(flipId.toString()))
+                .andExpect(jsonPath("$.content[0].liquidityScore").value(89.5))
+                .andExpect(jsonPath("$.content[0].riskScore").value(12.0));
+
+        verify(flipReadService, times(1)).filterFlips(
+                eq(FlipType.BAZAAR),
+                eq(Instant.parse("2026-02-19T20:00:00Z")),
+                eq(80.0D),
+                eq(20.0D),
+                eq(100_000L),
+                eq(0.2D),
+                eq(1.0D),
+                eq(1_000_000L),
+                eq(false),
+                eq(FlipSortBy.LIQUIDITY_SCORE),
+                eq(Sort.Direction.DESC),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void topLiquidityEndpointDelegatesToService() throws Exception {
+        Page<UnifiedFlipDto> resultPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+        when(flipReadService.topLiquidityFlips(eq(FlipType.AUCTION), any(), any(Pageable.class))).thenReturn(resultPage);
+
+        mockMvc.perform(get("/api/v1/flips/top/liquidity")
+                        .param("flipType", "AUCTION")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(0));
+
+        verify(flipReadService, times(1)).topLiquidityFlips(eq(FlipType.AUCTION), any(), any(Pageable.class));
+    }
+
+    @Test
+    void lowRiskEndpointDelegatesToService() throws Exception {
+        Page<UnifiedFlipDto> resultPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+        when(flipReadService.lowestRiskFlips(eq(FlipType.BAZAAR), any(), any(Pageable.class))).thenReturn(resultPage);
+
+        mockMvc.perform(get("/api/v1/flips/top/low-risk")
+                        .param("flipType", "BAZAAR")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(0));
+
+        verify(flipReadService, times(1)).lowestRiskFlips(eq(FlipType.BAZAAR), any(), any(Pageable.class));
+    }
 }
