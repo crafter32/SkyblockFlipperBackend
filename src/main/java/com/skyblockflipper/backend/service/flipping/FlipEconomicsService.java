@@ -38,8 +38,7 @@ public class FlipEconomicsService {
         long baseListingFee = ceilToLong(grossRevenue * listingRate);
         long listingFee = ceilToLong(baseListingFee * taxMultiplier);
 
-        long baseDurationFee = auctionDurationFee(durationHours);
-        long durationFee = ceilToLong(baseDurationFee * taxMultiplier);
+        long durationFee = auctionDurationFee(durationHours);
 
         long baseClaimTax = computeAuctionClaimTax(grossRevenue);
         long claimTax = Math.min(

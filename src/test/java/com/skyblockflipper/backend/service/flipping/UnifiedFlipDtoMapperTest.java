@@ -128,11 +128,11 @@ class UnifiedFlipDtoMapperTest {
                 new FlipCalculationContext(snapshot, 0.0125D, 4.0D, false, FlipScoreFeatureSet.empty())
         );
 
-        assertEquals(2_600_400L, dto.requiredCapital());
-        assertEquals(17_199_600L, dto.expectedProfit());
-        assertEquals(1_800_400L, dto.fees());
-        assertEquals(6.61421319796954D, dto.roi(), 1e-9);
-        assertEquals(529.137055837563D, dto.roiPerHour(), 1e-9);
+        assertEquals(2_600_100L, dto.requiredCapital());
+        assertEquals(17_199_900L, dto.expectedProfit());
+        assertEquals(1_800_100L, dto.fees());
+        assertEquals(6.61509172724126D, dto.roi(), 1e-9);
+        assertEquals(529.207338179301D, dto.roiPerHour(), 1e-9);
         assertFalse(dto.partial());
     }
 
