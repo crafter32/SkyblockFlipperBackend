@@ -40,23 +40,20 @@ public class FlipEconomicsService {
 
         long durationFee = auctionDurationFee(durationHours);
 
-        long baseClaimTax = computeAuctionClaimTax(grossRevenue);
-        long claimTax = Math.min(
-                baseClaimTax,
-                Math.max(0L, grossRevenue - CLAIM_TAX_MIN_REMAINING_COINS)
-        );
+        long claimTax = computeAuctionClaimTax(grossRevenue, taxMultiplier);
 
         long totalFee = listingFee + durationFee + claimTax;
         return new AuctionFeeBreakdown(listingFee, durationFee, claimTax, totalFee);
     }
 
-    private long computeAuctionClaimTax(long grossRevenue) {
+    private long computeAuctionClaimTax(long grossRevenue, double taxMultiplier) {
         if (grossRevenue <= CLAIM_TAX_MIN_REMAINING_COINS) {
             return 0L;
         }
-        long onePercent = ceilToLong(grossRevenue * 0.01D);
+        long baseClaimTax = ceilToLong(grossRevenue * 0.01D);
+        long scaledClaimTax = ceilToLong(baseClaimTax * taxMultiplier);
         long cap = Math.max(0L, grossRevenue - CLAIM_TAX_MIN_REMAINING_COINS);
-        return Math.min(onePercent, cap);
+        return Math.min(scaledClaimTax, cap);
     }
 
     private double resolveAuctionListingRate(long grossRevenue) {
@@ -73,6 +70,7 @@ public class FlipEconomicsService {
         return switch (durationHours) {
             case 1 -> 20L;
             case 6 -> 45L;
+            case 12 -> 100L;
             case 24 -> 350L;
             case 48 -> 1200L;
             default -> 100L;

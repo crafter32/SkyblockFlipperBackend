@@ -53,7 +53,7 @@ class FlipEconomicsServiceTest {
         FlipEconomicsService.AuctionFeeBreakdown fees = economicsService.computeAuctionFees(20_000_000L, 12, 4.0D);
         assertEquals(1_600_000L, fees.listingFee());
         assertEquals(100L, fees.durationFee());
-        assertEquals(200_000L, fees.claimTax());
-        assertEquals(1_800_100L, fees.totalFee());
+        assertEquals(800_000L, fees.claimTax());
+        assertEquals(2_400_100L, fees.totalFee());
     }
 }

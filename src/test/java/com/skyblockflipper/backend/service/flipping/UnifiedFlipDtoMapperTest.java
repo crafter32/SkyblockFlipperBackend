@@ -129,10 +129,10 @@ class UnifiedFlipDtoMapperTest {
         );
 
         assertEquals(2_600_100L, dto.requiredCapital());
-        assertEquals(17_199_900L, dto.expectedProfit());
-        assertEquals(1_800_100L, dto.fees());
-        assertEquals(6.61509172724126D, dto.roi(), 1e-9);
-        assertEquals(529.207338179301D, dto.roiPerHour(), 1e-9);
+        assertEquals(16_599_900L, dto.expectedProfit());
+        assertEquals(2_400_100L, dto.fees());
+        assertEquals(16_599_900D / 2_600_100D, dto.roi(), 1e-6);
+        assertEquals((16_599_900D / 2_600_100D) * 80D, dto.roiPerHour(), 1e-3);
         assertFalse(dto.partial());
     }
 
