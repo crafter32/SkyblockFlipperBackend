@@ -323,7 +323,7 @@ class FlipControllerWebMvcTest {
         when(flipReadService.topGoodnessFlips(eq(FlipType.BAZAAR), eq(Instant.parse("2026-02-19T20:00:00Z")), eq(1)))
                 .thenReturn(resultPage);
 
-        mockMvc.perform(get("/api/v1/flips/top/goodness")
+        mockMvc.perform(get("/api/v1/flips/top/best")
                         .param("flipType", "BAZAAR")
                         .param("snapshotTimestamp", "2026-02-19T20:00:00Z")
                         .param("page", "1"))
