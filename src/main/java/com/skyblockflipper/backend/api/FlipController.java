@@ -110,7 +110,7 @@ public class FlipController {
         return flipReadService.lowestRiskFlips(flipType, snapshotTimestamp, pageable);
     }
 
-    @GetMapping("/top/goodness")
+    @GetMapping("/top/best")
     public Page<FlipGoodnessDto> topGoodnessFlips(
             @RequestParam(required = false) FlipType flipType,
             @RequestParam(required = false)
