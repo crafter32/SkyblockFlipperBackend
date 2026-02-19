@@ -2,6 +2,7 @@ package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Flip;
+import com.skyblockflipper.backend.model.Flipping.Policy.FlipEligibilityPolicy;
 import com.skyblockflipper.backend.model.Flipping.Step;
 import com.skyblockflipper.backend.model.market.UnifiedFlipInputSnapshot;
 import org.springframework.stereotype.Component;
@@ -19,14 +20,13 @@ public class MarketFlipMapper {
     private static final long DEFAULT_MARKET_STEP_SECONDS = 30L;
     private static final int DEFAULT_AUCTION_DURATION_HOURS = 12;
     private static final int DEFAULT_STACK_AMOUNT = 1;
-    private static final double MIN_BAZAAR_EDGE_RATIO = 1.015D;
-    private static final double MIN_AUCTION_EDGE_RATIO = 1.05D;
-    private static final int MIN_AUCTION_SAMPLE_SIZE = 3;
 
     private final ObjectMapper objectMapper;
+    private final FlipEligibilityPolicy flipEligibilityPolicy;
 
-    public MarketFlipMapper(ObjectMapper objectMapper) {
+    public MarketFlipMapper(ObjectMapper objectMapper, FlipEligibilityPolicy flipEligibilityPolicy) {
         this.objectMapper = objectMapper;
+        this.flipEligibilityPolicy = flipEligibilityPolicy;
     }
 
     public List<Flip> fromMarketSnapshot(UnifiedFlipInputSnapshot snapshot) {
@@ -51,13 +51,10 @@ public class MarketFlipMapper {
     }
 
     private Flip buildBazaarFlip(String itemId, UnifiedFlipInputSnapshot.BazaarQuote quote) {
-        if (itemId == null || itemId.isBlank() || quote == null) {
+        if (itemId == null || itemId.isBlank()) {
             return null;
         }
-        if (quote.buyPrice() <= 0D || quote.sellPrice() <= 0D) {
-            return null;
-        }
-        if ((quote.sellPrice() / quote.buyPrice()) < MIN_BAZAAR_EDGE_RATIO) {
+        if (!flipEligibilityPolicy.isBazaarFlipEligible(quote)) {
             return null;
         }
 
@@ -76,16 +73,10 @@ public class MarketFlipMapper {
     }
 
     private Flip buildAuctionFlip(String itemId, UnifiedFlipInputSnapshot.AuctionQuote quote) {
-        if (itemId == null || itemId.isBlank() || quote == null) {
+        if (itemId == null || itemId.isBlank()) {
             return null;
         }
-        if (quote.lowestStartingBid() <= 0L || quote.averageObservedPrice() <= 0D) {
-            return null;
-        }
-        if (quote.sampleSize() < MIN_AUCTION_SAMPLE_SIZE) {
-            return null;
-        }
-        if ((quote.averageObservedPrice() / quote.lowestStartingBid()) < MIN_AUCTION_EDGE_RATIO) {
+        if (!flipEligibilityPolicy.isAuctionFlipEligible(quote)) {
             return null;
         }
 

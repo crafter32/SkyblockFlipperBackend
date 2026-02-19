@@ -1,6 +1,7 @@
 package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
+import com.skyblockflipper.backend.model.Flipping.Policy.FlipEligibilityPolicy;
 import com.skyblockflipper.backend.model.Flipping.Flip;
 import com.skyblockflipper.backend.model.Flipping.Step;
 import com.skyblockflipper.backend.model.market.UnifiedFlipInputSnapshot;
@@ -16,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarketFlipMapperTest {
 
-    private final MarketFlipMapper mapper = new MarketFlipMapper(new ObjectMapper());
+    private final MarketFlipMapper mapper = new MarketFlipMapper(new ObjectMapper(), new FlipEligibilityPolicy());
 
     @Test
     void generatesAuctionAndBazaarFlipsForViableSpreads() {
