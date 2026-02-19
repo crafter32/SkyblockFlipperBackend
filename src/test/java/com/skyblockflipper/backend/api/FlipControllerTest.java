@@ -144,6 +144,24 @@ class FlipControllerTest {
     }
 
     @Test
+    void topGoodnessFlipsDelegatesToService() {
+        FlipReadService service = mock(FlipReadService.class);
+        FlipController controller = new FlipController(service);
+        Instant snapshotTimestamp = Instant.parse("2026-02-18T21:00:00Z");
+        Page<FlipGoodnessDto> expected = new PageImpl<>(List.of(
+                new FlipGoodnessDto(sampleDto(), 87.3D,
+                        new FlipGoodnessDto.GoodnessBreakdown(90D, 70D, 80D, 85D, false))
+        ));
+
+        when(service.topGoodnessFlips(FlipType.BAZAAR, snapshotTimestamp, 2)).thenReturn(expected);
+
+        Page<FlipGoodnessDto> response = controller.topGoodnessFlips(FlipType.BAZAAR, snapshotTimestamp, 2);
+
+        assertEquals(expected, response);
+        verify(service).topGoodnessFlips(FlipType.BAZAAR, snapshotTimestamp, 2);
+    }
+
+    @Test
     void flipTypeCoverageDelegatesToService() {
         FlipReadService service = mock(FlipReadService.class);
         FlipController controller = new FlipController(service);

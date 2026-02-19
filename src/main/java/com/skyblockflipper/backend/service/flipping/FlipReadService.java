@@ -1,6 +1,7 @@
 package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.api.FlipCoverageDto;
+import com.skyblockflipper.backend.api.FlipGoodnessDto;
 import com.skyblockflipper.backend.api.FlipSnapshotStatsDto;
 import com.skyblockflipper.backend.api.FlipSortBy;
 import com.skyblockflipper.backend.api.FlipTypesDto;
@@ -10,6 +11,7 @@ import com.skyblockflipper.backend.model.Flipping.Flip;
 import com.skyblockflipper.backend.repository.FlipRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.util.function.Function;
 @Service
 public class FlipReadService {
 
+    private static final int GOODNESS_PAGE_SIZE = 10;
     private static final List<FlipType> COVERED_FLIP_TYPES = List.of(
             FlipType.AUCTION,
             FlipType.BAZAAR,
@@ -111,7 +114,7 @@ public class FlipReadService {
                         sortDirection == null ? Sort.Direction.DESC : sortDirection))
                 .toList();
 
-        return paginate(mapped, pageable);
+        return paginateUnified(mapped, pageable);
     }
 
     public Page<UnifiedFlipDto> topLiquidityFlips(FlipType flipType, Instant snapshotTimestamp, Pageable pageable) {
@@ -146,6 +149,29 @@ public class FlipReadService {
                 Sort.Direction.ASC,
                 pageable
         );
+    }
+
+    public Page<FlipGoodnessDto> topGoodnessFlips(FlipType flipType, Instant snapshotTimestamp, int page) {
+        Long snapshotEpochMillis = resolveSnapshotEpochMillis(snapshotTimestamp);
+        FlipCalculationContext context = snapshotEpochMillis == null
+                ? flipCalculationContextService.loadCurrentContext()
+                : flipCalculationContextService.loadContextAsOf(Instant.ofEpochMilli(snapshotEpochMillis));
+
+        List<FlipGoodnessDto> ranked = queryFlips(flipType, snapshotEpochMillis, Pageable.unpaged())
+                .stream()
+                .map(flip -> unifiedFlipDtoMapper.toDto(flip, context))
+                .filter(dto -> dto != null)
+                .map(this::toGoodnessDto)
+                .sorted(Comparator.comparing(FlipGoodnessDto::goodnessScore, Comparator.reverseOrder())
+                        .thenComparing(entry -> {
+                            UnifiedFlipDto flip = entry.flip();
+                            return flip.expectedProfit() == null ? Long.MIN_VALUE : flip.expectedProfit();
+                        }, Comparator.reverseOrder())
+                        .thenComparing(entry -> entry.flip().id() == null ? "" : entry.flip().id().toString()))
+                .toList();
+
+        int safePage = Math.max(0, page);
+        return paginateGoodness(ranked, PageRequest.of(safePage, GOODNESS_PAGE_SIZE));
     }
 
     public FlipTypesDto listSupportedFlipTypes() {
@@ -292,7 +318,7 @@ public class FlipReadService {
                 .thenComparing(dto -> dto.id() == null ? "" : dto.id().toString());
     }
 
-    private Page<UnifiedFlipDto> paginate(List<UnifiedFlipDto> dtos, Pageable pageable) {
+    private Page<UnifiedFlipDto> paginateUnified(List<UnifiedFlipDto> dtos, Pageable pageable) {
         if (pageable == null || pageable.isUnpaged()) {
             return new PageImpl<>(dtos);
         }
@@ -300,5 +326,69 @@ public class FlipReadService {
         int toIndex = Math.min(fromIndex + pageable.getPageSize(), dtos.size());
         List<UnifiedFlipDto> pageContent = dtos.subList(fromIndex, toIndex);
         return new PageImpl<>(pageContent, pageable, dtos.size());
+    }
+
+    private Page<FlipGoodnessDto> paginateGoodness(List<FlipGoodnessDto> dtos, Pageable pageable) {
+        if (pageable == null || pageable.isUnpaged()) {
+            return new PageImpl<>(dtos);
+        }
+        int fromIndex = (int) Math.min((long) pageable.getPageNumber() * pageable.getPageSize(), dtos.size());
+        int toIndex = Math.min(fromIndex + pageable.getPageSize(), dtos.size());
+        List<FlipGoodnessDto> pageContent = dtos.subList(fromIndex, toIndex);
+        return new PageImpl<>(pageContent, pageable, dtos.size());
+    }
+
+    private FlipGoodnessDto toGoodnessDto(UnifiedFlipDto dto) {
+        double roiPerHourScore = roiPerHourScore(dto.roiPerHour());
+        double profitScore = profitScore(dto.expectedProfit());
+        double liquidityScore = clamp(nullableDouble(dto.liquidityScore()), 0D, 100D);
+        double inverseRiskScore = 100D - clamp(nullableDouble(dto.riskScore()), 0D, 100D);
+        boolean partialPenaltyApplied = dto.partial();
+
+        double weighted = (0.35D * roiPerHourScore)
+                + (0.25D * profitScore)
+                + (0.25D * liquidityScore)
+                + (0.15D * inverseRiskScore);
+        if (partialPenaltyApplied) {
+            weighted -= 10D;
+        }
+        double score = clamp(weighted, 0D, 100D);
+
+        return new FlipGoodnessDto(
+                dto,
+                score,
+                new FlipGoodnessDto.GoodnessBreakdown(
+                        round2(roiPerHourScore),
+                        round2(profitScore),
+                        round2(liquidityScore),
+                        round2(inverseRiskScore),
+                        partialPenaltyApplied
+                )
+        );
+    }
+
+    private double roiPerHourScore(Double roiPerHour) {
+        double value = Math.max(0D, nullableDouble(roiPerHour));
+        return 100D * (1D - Math.exp(-2D * value));
+    }
+
+    private double profitScore(Long expectedProfit) {
+        double value = Math.max(0D, expectedProfit == null ? 0D : expectedProfit.doubleValue());
+        return Math.min(100D, Math.log10(value + 1D) * 10D);
+    }
+
+    private double nullableDouble(Double value) {
+        if (value == null || Double.isNaN(value) || Double.isInfinite(value)) {
+            return 0D;
+        }
+        return value;
+    }
+
+    private double round2(double value) {
+        return Math.round(value * 100D) / 100D;
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

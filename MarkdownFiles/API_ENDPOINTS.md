@@ -190,6 +190,35 @@ Response:
 
 ---
 
+### `GET /api/v1/flips/top/goodness`
+
+Convenience endpoint: flips ranked by combined "goodness" score.
+
+Query params:
+- `flipType` (optional enum)
+- `snapshotTimestamp` (optional ISO-8601)
+- `page` (optional, default `0`)
+
+Behavior:
+- Fixed page size: `10`
+- Sorted by computed `goodnessScore DESC`
+- Score combines profitability, ROI/h, liquidity, and inverse risk
+
+Response:
+- `Page<FlipGoodnessDto>`
+
+`FlipGoodnessDto`:
+- `flip` (`UnifiedFlipDto`)
+- `goodnessScore` (`double`, `0..100`)
+- `breakdown`:
+- `roiPerHourScore`
+- `profitScore`
+- `liquidityScore`
+- `inverseRiskScore`
+- `partialPenaltyApplied`
+
+---
+
 ## Snapshot Endpoints
 
 ### `GET /api/v1/snapshots`

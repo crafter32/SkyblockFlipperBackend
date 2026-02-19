@@ -1,6 +1,7 @@
 package com.skyblockflipper.backend.service.flipping;
 
 import com.skyblockflipper.backend.api.FlipCoverageDto;
+import com.skyblockflipper.backend.api.FlipGoodnessDto;
 import com.skyblockflipper.backend.api.FlipSortBy;
 import com.skyblockflipper.backend.api.UnifiedFlipDto;
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
@@ -339,6 +341,73 @@ class FlipReadServiceTest {
         assertEquals(UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), result.getContent().get(1).id());
     }
 
+    @Test
+    void topGoodnessFlipsRanksByComputedGoodness() {
+        FlipRepository flipRepository = mock(FlipRepository.class);
+        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
+        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
+        FlipReadService service = new FlipReadService(flipRepository, mapper, contextService);
+        FlipCalculationContext context = FlipCalculationContext.standard(null);
+
+        Flip flipHigh = mock(Flip.class);
+        Flip flipMid = mock(Flip.class);
+        Flip flipLowPenalty = mock(Flip.class);
+        when(flipRepository.findAll(Pageable.unpaged())).thenReturn(new PageImpl<>(List.of(flipHigh, flipMid, flipLowPenalty)));
+        when(contextService.loadCurrentContext()).thenReturn(context);
+
+        when(mapper.toDto(flipHigh, context)).thenReturn(sampleGoodnessDto(
+                UUID.fromString("10101010-1010-1010-1010-101010101010"),
+                5.0D, 10_000_000L, 95.0D, 5.0D, false
+        ));
+        when(mapper.toDto(flipMid, context)).thenReturn(sampleGoodnessDto(
+                UUID.fromString("20202020-2020-2020-2020-202020202020"),
+                2.0D, 1_000_000L, 80.0D, 20.0D, false
+        ));
+        when(mapper.toDto(flipLowPenalty, context)).thenReturn(sampleGoodnessDto(
+                UUID.fromString("30303030-3030-3030-3030-303030303030"),
+                2.0D, 1_000_000L, 80.0D, 20.0D, true
+        ));
+
+        Page<FlipGoodnessDto> result = service.topGoodnessFlips(null, null, 0);
+
+        assertEquals(3, result.getTotalElements());
+        assertEquals(10, result.getSize());
+        assertEquals(UUID.fromString("10101010-1010-1010-1010-101010101010"), result.getContent().get(0).flip().id());
+        assertEquals(UUID.fromString("20202020-2020-2020-2020-202020202020"), result.getContent().get(1).flip().id());
+        assertEquals(UUID.fromString("30303030-3030-3030-3030-303030303030"), result.getContent().get(2).flip().id());
+        assertTrue(result.getContent().get(2).breakdown().partialPenaltyApplied());
+    }
+
+    @Test
+    void topGoodnessFlipsUsesFixedPageSizeTen() {
+        FlipRepository flipRepository = mock(FlipRepository.class);
+        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
+        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
+        FlipReadService service = new FlipReadService(flipRepository, mapper, contextService);
+        FlipCalculationContext context = FlipCalculationContext.standard(null);
+
+        List<Flip> flips = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            flips.add(mock(Flip.class));
+        }
+        when(flipRepository.findAllByFlipType(FlipType.BAZAAR, Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(flips));
+        when(contextService.loadCurrentContext()).thenReturn(context);
+        for (int i = 0; i < flips.size(); i++) {
+            Flip flip = flips.get(i);
+            long profit = i + 1L;
+            UUID id = UUID.fromString(String.format("%08d-0000-0000-0000-000000000000", i + 1));
+            when(mapper.toDto(flip, context)).thenReturn(sampleGoodnessDto(id, 1.0D, profit, 50.0D, 50.0D, false));
+        }
+
+        Page<FlipGoodnessDto> secondPage = service.topGoodnessFlips(FlipType.BAZAAR, null, 1);
+
+        assertEquals(12, secondPage.getTotalElements());
+        assertEquals(10, secondPage.getSize());
+        assertEquals(1, secondPage.getNumber());
+        assertEquals(2, secondPage.getContent().size());
+    }
+
     private UnifiedFlipDto sampleDto() {
         return new UnifiedFlipDto(
                 UUID.randomUUID(),
@@ -377,6 +446,33 @@ class FlipReadServiceTest {
                 riskScore,
                 Instant.parse("2026-02-19T20:00:00Z"),
                 false,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+    }
+
+    private UnifiedFlipDto sampleGoodnessDto(UUID id,
+                                             Double roiPerHour,
+                                             Long expectedProfit,
+                                             Double liquidityScore,
+                                             Double riskScore,
+                                             boolean partial) {
+        return new UnifiedFlipDto(
+                id,
+                FlipType.BAZAAR,
+                List.of(),
+                List.of(),
+                1_000_000L,
+                expectedProfit,
+                0.5D,
+                roiPerHour,
+                3_600L,
+                10_000L,
+                liquidityScore,
+                riskScore,
+                Instant.parse("2026-02-19T20:00:00Z"),
+                partial,
                 List.of(),
                 List.of(),
                 List.of()

@@ -292,4 +292,52 @@ class FlipControllerWebMvcTest {
 
         verify(flipReadService, times(1)).lowestRiskFlips(eq(FlipType.BAZAAR), any(), any(Pageable.class));
     }
+
+    @Test
+    void topGoodnessEndpointReturnsRankedFlips() throws Exception {
+        UnifiedFlipDto dto = new UnifiedFlipDto(
+                UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                FlipType.BAZAAR,
+                List.of(),
+                List.of(),
+                1_000_000L,
+                250_000L,
+                0.25D,
+                1.5D,
+                3_600L,
+                10_000L,
+                88.0D,
+                12.0D,
+                Instant.parse("2026-02-19T20:00:00Z"),
+                false,
+                List.of(),
+                List.of(),
+                List.of()
+        );
+        FlipGoodnessDto ranked = new FlipGoodnessDto(
+                dto,
+                84.42D,
+                new FlipGoodnessDto.GoodnessBreakdown(95.0D, 60.0D, 88.0D, 88.0D, false)
+        );
+        Page<FlipGoodnessDto> resultPage = new PageImpl<>(List.of(ranked), PageRequest.of(1, 10), 11);
+        when(flipReadService.topGoodnessFlips(eq(FlipType.BAZAAR), eq(Instant.parse("2026-02-19T20:00:00Z")), eq(1)))
+                .thenReturn(resultPage);
+
+        mockMvc.perform(get("/api/v1/flips/top/goodness")
+                        .param("flipType", "BAZAAR")
+                        .param("snapshotTimestamp", "2026-02-19T20:00:00Z")
+                        .param("page", "1"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].goodnessScore").value(84.42))
+                .andExpect(jsonPath("$.content[0].flip.id").value("33333333-3333-3333-3333-333333333333"))
+                .andExpect(jsonPath("$.content[0].flip.flipType").value("BAZAAR"))
+                .andExpect(jsonPath("$.content[0].breakdown.partialPenaltyApplied").value(false))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.number").value(1));
+
+        verify(flipReadService, times(1))
+                .topGoodnessFlips(eq(FlipType.BAZAAR), eq(Instant.parse("2026-02-19T20:00:00Z")), eq(1));
+    }
 }

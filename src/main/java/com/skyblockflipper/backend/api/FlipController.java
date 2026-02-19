@@ -110,6 +110,17 @@ public class FlipController {
         return flipReadService.lowestRiskFlips(flipType, snapshotTimestamp, pageable);
     }
 
+    @GetMapping("/top/goodness")
+    public Page<FlipGoodnessDto> topGoodnessFlips(
+            @RequestParam(required = false) FlipType flipType,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant snapshotTimestamp,
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        return flipReadService.topGoodnessFlips(flipType, snapshotTimestamp, page);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<UnifiedFlipDto> getFlipById(@PathVariable UUID id) {
         return flipReadService.findFlipById(id)
