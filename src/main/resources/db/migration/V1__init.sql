@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS recipe_ingredient (
 
 CREATE INDEX IF NOT EXISTS idx_recipe_output_item ON recipe (output_item_id);
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_recipe ON recipe_ingredient (recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredient_item ON recipe_ingredient (item_id);
 
 -- ============================================================================
 -- 6) Market Snapshot Storage (Auction/Bazaar Inputs)
@@ -152,12 +153,14 @@ CREATE TABLE IF NOT EXISTS market_snapshot (
     snapshot_id UUID NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,
     auction_count INT NOT NULL,
     bazaar_product_count INT NOT NULL,
-    auctions_json TEXT NOT NULL,
-    bazaar_products_json TEXT NOT NULL,
+    auctions_json JSONB NOT NULL,
+    bazaar_products_json JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_market_snapshot_snapshot ON market_snapshot (snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_market_snapshot_auctions_json ON market_snapshot USING GIN (auctions_json);
+CREATE INDEX IF NOT EXISTS idx_market_snapshot_bazaar_products_json ON market_snapshot USING GIN (bazaar_products_json);
 
 -- ============================================================================
 -- 7) Source Hash Tracking
