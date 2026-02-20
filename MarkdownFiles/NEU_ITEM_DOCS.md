@@ -485,3 +485,8 @@ Common stat symbols in lore:
 | `α` | Bonus Attack Speed |
 | `⚔` | Combat |
 | `⚓` | Fishing |
+
+## Update: Market Overview Endpoint
+
+- New endpoint available: `GET /api/v1/market/overview` (optional query param: `productId`). It returns a compact market overview with buy/sell/spread, 7-day range, volume averages, active flips, and best profit for quick dashboard usage.
+

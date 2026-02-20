@@ -17,6 +17,8 @@ public interface FlipRepository extends JpaRepository<Flip, UUID> {
 
     Page<Flip> findAllBySnapshotTimestampEpochMillis(long snapshotTimestampEpochMillis, Pageable pageable);
 
+    List<Flip> findAllBySnapshotTimestampEpochMillis(long snapshotTimestampEpochMillis);
+
     Page<Flip> findAllByFlipTypeAndSnapshotTimestampEpochMillis(FlipType flipType,
                                                                 long snapshotTimestampEpochMillis,
                                                                 Pageable pageable);

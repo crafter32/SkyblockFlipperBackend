@@ -31,6 +31,43 @@ Response:
 
 ---
 
+## Market Endpoints
+
+### `GET /api/v1/market/overview`
+
+Compact market overview for dashboard-style UI ("übersicht") with buy/sell/spread, 7d range, volume and flip summary.
+
+Query params:
+- `productId` (optional, e.g. `HYPERION`)
+
+Behavior:
+- Uses latest available market snapshot.
+- If `productId` is set, metrics are calculated for that Bazaar product.
+- If `productId` is omitted, it returns a representative overview from the latest snapshot.
+
+Response:
+
+```json
+{
+  "productId": "HYPERION",
+  "snapshotTimestamp": "2026-02-20T12:00:00Z",
+  "buy": 789400000,
+  "buyChangePercent": -0.7,
+  "sell": 770700000,
+  "sellChangePercent": -1.6,
+  "spread": 18700000,
+  "spreadPercent": 2.4,
+  "sevenDayHigh": 857500000,
+  "sevenDayLow": 770700000,
+  "volume": 416,
+  "averageVolume": 292,
+  "activeFlips": 2,
+  "bestProfit": 22500000
+}
+```
+
+---
+
 ## Flip Endpoints
 
 ### `GET /api/v1/flips`
