@@ -44,4 +44,11 @@ class ChangeDetectorTest {
         ChangeDetector.ChangeDecision decision = detector.evaluate(HypixelHttpResult.error(429, HttpHeaders.EMPTY, "rate"), null);
         assertEquals(ChangeDetector.Decision.RATE_LIMITED, decision.decision());
     }
+
+    @Test
+    void treatsOtherErrorsAsError() {
+        ChangeDetector detector = new ChangeDetector();
+        ChangeDetector.ChangeDecision decision = detector.evaluate(HypixelHttpResult.error(500, HttpHeaders.EMPTY, "server error"), null);
+        assertEquals(ChangeDetector.Decision.ERROR, decision.decision());
+    }
 }

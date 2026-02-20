@@ -25,32 +25,25 @@ class AdaptivePollerStateMachineTest {
 
         AdaptivePoller<String> poller = getStringAdaptivePoller(cfg);
 
-        AdaptivePollerState state = poller.snapshotState();
-        state.setMode(PollerMode.WARMUP);
-        state.setWarmupStartedAtMillis(0L);
         poller.onNoChange(6_000L);
-        assertEquals(PollerMode.STEADY, state.getMode());
+        assertEquals(PollerMode.STEADY, poller.snapshotState().getMode());
 
-        state.setMode(PollerMode.STEADY);
-        state.setLastChangeAtMillis(10_000L);
-        state.setEstimatedPeriodMillis(20_000L);
         poller.onNoChange(15_000L);
-        assertEquals(PollerMode.BURST, state.getMode());
+        assertEquals(PollerMode.BURST, poller.snapshotState().getMode());
 
-        state.setMode(PollerMode.BURST);
-        state.setBurstStartedAtMillis(0L);
-        poller.onNoChange(2_000L);
-        assertEquals(PollerMode.BACKOFF, state.getMode());
+        poller.onNoChange(16_500L);
+        assertEquals(PollerMode.BACKOFF, poller.snapshotState().getMode());
 
         poller.onChanged(
                 new AdaptivePoller.PollExecution<>(
                         ChangeDetector.ChangeDecision.changed(),
-                        "payload",
+                        null,
                         30_000L,
                         HypixelHttpResult.success(200, HttpHeaders.EMPTY, null)
                 ),
                 30_000L
         );
+        AdaptivePollerState state = poller.snapshotState();
         assertEquals(PollerMode.STEADY, state.getMode());
         assertEquals(1L, state.getUpdateCount());
         assertTrue(state.getEstimatedPeriodMillis() > 0L);

@@ -1,5 +1,6 @@
 package com.skyblockflipper.backend.config.properties;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -33,6 +34,31 @@ public class AdaptivePollingProperties {
     @Valid
     @NotNull
     private Pipeline pipeline = new Pipeline();
+
+    @PostConstruct
+    void validate() {
+        validateEndpoint("auctions", auctions);
+        validateEndpoint("bazaar", bazaar);
+    }
+
+    private void validateEndpoint(String endpointName, Endpoint endpoint) {
+        if (endpoint == null) {
+            throw new IllegalStateException("config.hypixel.adaptive." + endpointName + " must not be null");
+        }
+        if (endpoint.getMinGuardWindowMs() > endpoint.getMaxGuardWindowMs()) {
+            throw new IllegalStateException("Invalid " + endpointName + " config: minGuardWindowMs must be <= maxGuardWindowMs");
+        }
+        if (endpoint.getGuardWindowMs() < endpoint.getMinGuardWindowMs()
+                || endpoint.getGuardWindowMs() > endpoint.getMaxGuardWindowMs()) {
+            throw new IllegalStateException("Invalid " + endpointName + " config: guardWindowMs must be between minGuardWindowMs and maxGuardWindowMs");
+        }
+        if (endpoint.getMinPeriodMultiplier() > endpoint.getMaxPeriodMultiplier()) {
+            throw new IllegalStateException("Invalid " + endpointName + " config: minPeriodMultiplier must be <= maxPeriodMultiplier");
+        }
+        if (endpoint.getBurstWindowMs() < endpoint.getBurstIntervalMs()) {
+            throw new IllegalStateException("Invalid " + endpointName + " config: burstWindowMs must be >= burstIntervalMs");
+        }
+    }
 
     @Getter
     @Setter

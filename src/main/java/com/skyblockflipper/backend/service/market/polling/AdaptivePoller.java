@@ -84,7 +84,7 @@ public class AdaptivePoller<T> {
     }
 
     public AdaptivePollerState snapshotState() {
-        return state;
+        return state.copy();
     }
 
     private void scheduleAfter(long delayMillis) {

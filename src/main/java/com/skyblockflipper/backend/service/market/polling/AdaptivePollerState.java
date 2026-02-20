@@ -16,4 +16,24 @@ public class AdaptivePollerState {
     private long missCount;
     private long updateCount;
     private long consecutiveErrors;
+
+    public AdaptivePollerState() {
+    }
+
+    public AdaptivePollerState(AdaptivePollerState other) {
+        this.mode = other.mode;
+        this.warmupStartedAtMillis = other.warmupStartedAtMillis;
+        this.burstStartedAtMillis = other.burstStartedAtMillis;
+        this.lastPollAtMillis = other.lastPollAtMillis;
+        this.lastChangeAtMillis = other.lastChangeAtMillis;
+        this.estimatedPeriodMillis = other.estimatedPeriodMillis;
+        this.expectedChangeAtMillis = other.expectedChangeAtMillis;
+        this.missCount = other.missCount;
+        this.updateCount = other.updateCount;
+        this.consecutiveErrors = other.consecutiveErrors;
+    }
+
+    public AdaptivePollerState copy() {
+        return new AdaptivePollerState(this);
+    }
 }

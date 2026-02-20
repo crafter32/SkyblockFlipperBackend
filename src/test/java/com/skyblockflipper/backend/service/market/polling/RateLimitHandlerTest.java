@@ -36,6 +36,7 @@ class RateLimitHandlerTest {
         headers.add(HttpHeaders.RETRY_AFTER, "2");
 
         handler.on429(HypixelHttpResult.error(429, headers, "rate limited"), now);
-        assertTrue(handler.blockedForMillis(now) >= 1_500L);
+        long blockedForMillis = handler.blockedForMillis(now);
+        assertTrue(blockedForMillis >= 1_900L && blockedForMillis <= 2_100L);
     }
 }

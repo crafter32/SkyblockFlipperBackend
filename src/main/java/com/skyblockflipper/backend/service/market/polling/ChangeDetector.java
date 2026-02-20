@@ -30,20 +30,18 @@ public class ChangeDetector {
         String etag = headers.getETag();
         String modified = headers.getFirst(HttpHeaders.LAST_MODIFIED);
 
-        boolean changed = false;
+        boolean changed;
         if (StringUtils.hasText(etag)) {
             changed = !etag.equals(lastEtag);
             lastEtag = etag;
         } else if (StringUtils.hasText(modified)) {
             changed = !modified.equals(lastModified);
             lastModified = modified;
-        }
-
-        if (!changed && StringUtils.hasText(fallbackHash)) {
+        } else if (StringUtils.hasText(fallbackHash)) {
             changed = !fallbackHash.equals(lastHash);
-        }
-        if (StringUtils.hasText(fallbackHash)) {
             lastHash = fallbackHash;
+        } else {
+            changed = false;
         }
 
         return changed ? ChangeDecision.changed() : ChangeDecision.noChange();

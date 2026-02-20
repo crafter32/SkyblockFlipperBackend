@@ -113,25 +113,35 @@ public class MarketDataProcessingService {
     }
 
     public Optional<UnifiedFlipInputSnapshot> ingestAuctionPayload(AuctionResponse auctionResponse, String cycleId) {
+        AuctionResponse auctionSnapshot;
+        BazaarResponse bazaarSnapshot;
+        long payloadBytes;
         synchronized (pollStateLock) {
             cachedAuctionResponse = auctionResponse;
             if (auctionResponse != null && auctionResponse.getLastUpdated() > 0L) {
                 lastAuctionLastUpdated = Math.max(lastAuctionLastUpdated, auctionResponse.getLastUpdated());
             }
-            long payloadBytes = estimatePayload(auctionResponse, cachedBazaarResponse);
-            return mapAndPersistSnapshot(cycleId, cachedAuctionResponse, cachedBazaarResponse, payloadBytes);
+            auctionSnapshot = cachedAuctionResponse;
+            bazaarSnapshot = cachedBazaarResponse;
+            payloadBytes = estimatePayload(auctionSnapshot, bazaarSnapshot);
         }
+        return mapAndPersistSnapshot(cycleId, auctionSnapshot, bazaarSnapshot, payloadBytes);
     }
 
     public Optional<UnifiedFlipInputSnapshot> ingestBazaarPayload(BazaarResponse bazaarResponse, String cycleId) {
+        AuctionResponse auctionSnapshot;
+        BazaarResponse bazaarSnapshot;
+        long payloadBytes;
         synchronized (pollStateLock) {
             cachedBazaarResponse = bazaarResponse;
             if (bazaarResponse != null && bazaarResponse.getLastUpdated() > 0L) {
                 lastBazaarLastUpdated = Math.max(lastBazaarLastUpdated, bazaarResponse.getLastUpdated());
             }
-            long payloadBytes = estimatePayload(cachedAuctionResponse, bazaarResponse);
-            return mapAndPersistSnapshot(cycleId, cachedAuctionResponse, cachedBazaarResponse, payloadBytes);
+            auctionSnapshot = cachedAuctionResponse;
+            bazaarSnapshot = cachedBazaarResponse;
+            payloadBytes = estimatePayload(auctionSnapshot, bazaarSnapshot);
         }
+        return mapAndPersistSnapshot(cycleId, auctionSnapshot, bazaarSnapshot, payloadBytes);
     }
 
     private Optional<UnifiedFlipInputSnapshot> mapAndPersistSnapshot(String cycleId,

@@ -8,6 +8,7 @@ public class GlobalRequestLimiter {
     public GlobalRequestLimiter(double requestsPerSecond) {
         double requestsPerSecond1 = Math.max(0.1d, requestsPerSecond);
         this.intervalNanos = Math.max(1L, Math.round(1_000_000_000d / requestsPerSecond1));
+        this.nextAllowedNano = System.nanoTime() - this.intervalNanos;
     }
 
     public synchronized long reserveDelayMillis() {

@@ -14,7 +14,7 @@ public record HypixelHttpResult<T>(
     }
 
     public boolean isSuccessful() {
-        return statusCode >= 200 && statusCode < 300;
+        return !transportError && statusCode >= 200 && statusCode < 300;
     }
 
     public static <T> HypixelHttpResult<T> success(int statusCode, HttpHeaders headers, T body) {
