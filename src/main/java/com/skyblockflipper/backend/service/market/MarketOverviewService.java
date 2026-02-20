@@ -133,7 +133,11 @@ public class MarketOverviewService {
         if (productId != null) {
             return bazaarProducts.get(productId);
         }
-        return bazaarProducts.values().stream().findFirst().orElse(null);
+        String firstKey = bazaarProducts.keySet().stream()
+                .filter(Objects::nonNull)
+                .min(String::compareTo)
+                .orElse(null);
+        return firstKey == null ? null : bazaarProducts.get(firstKey);
     }
 
     private Double average(List<Double> values) {
