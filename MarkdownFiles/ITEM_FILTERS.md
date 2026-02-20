@@ -131,3 +131,5 @@ The `recipes` array can also contain:
 - `"type": "katgrade"` - Pet upgrade via Kat
 - `"type": "npc_shop"` - NPC shop purchase
 - `"type": "essence_shop"` - Essence shop items
+
+

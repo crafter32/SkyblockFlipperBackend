@@ -115,3 +115,5 @@ Rounding in coin space:
 - Fixed fee components: exact integer
 
 Final integer fields are expressed in whole coins.
+
+

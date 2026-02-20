@@ -485,3 +485,5 @@ Common stat symbols in lore:
 | `α` | Bonus Attack Speed |
 | `⚔` | Combat |
 | `⚓` | Fishing |
+
+

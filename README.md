@@ -148,6 +148,7 @@ Short example:
 - `GET /api/v1/flips` - paged unified flip list with optional `flipType` filter.
 - `GET /api/v1/flips/{id}` - detail view for a flip by UUID.
 - `GET /api/v1/items/npc-buyable` - paged NPC-shop offer data with optional `itemId`.
+- `GET /api/v1/market/overview` - compact market overview (optional `productId`) with buy/sell/spread, 7-day range, volume averages, active flips, and best profit.
 
 Not exposed publicly yet:
 - Bazaar data (currently available internally via `HypixelClient#fetchBazaar()`).
@@ -318,3 +319,5 @@ Guidelines:
 - Keep PRs small and focused.
 - Avoid breaking changes without a versioning strategy.
 - Integrate new flip types through the unified model.
+
+

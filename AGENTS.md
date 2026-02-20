@@ -137,3 +137,5 @@ Alle Flip-Typen sollen in dieses Schema normalisiert werden.
 
 Dieses Dokument dient als Grundlage für die systematische Analyse und Weiterentwicklung des SkyblockFlipperBackend-Projekts.
 
+Für aktuelle Endpoint-Details siehe `MarkdownFiles/API_ENDPOINTS.md`.
+

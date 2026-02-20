@@ -104,3 +104,5 @@ If another document conflicts with this one, keep these invariants:
 3. Daily keeper is the first snapshot in each UTC day.
 4. Micro-scoring does not treat many snapshots as independent votes.
 
+Hinweis: Endpoint-Details stehen zentral in `MarkdownFiles/API_ENDPOINTS.md` (siehe Market Overview).
+
