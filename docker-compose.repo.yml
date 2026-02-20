@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: ${REPO_GIT_URL:-https://github.com/crafter32/SkyblockFlipperBackend.git}#${REPO_GIT_REF:-main}
+      context: ${REPO_GIT_URL:-https://github.com/Skyblock-FlipLens/FlipLens_Backend.git}#${REPO_GIT_REF:-main}
       dockerfile: Dockerfile
     container_name: skyblockflipper-api
     restart: unless-stopped
