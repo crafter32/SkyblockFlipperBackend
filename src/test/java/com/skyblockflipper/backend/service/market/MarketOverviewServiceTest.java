@@ -26,6 +26,8 @@ import static org.mockito.Mockito.when;
 
 class MarketOverviewServiceTest {
 
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-02-21T12:00:00Z");
+
     @Test
     void overviewReturnsFallbackWhenNoSnapshotExists() {
         MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
@@ -101,7 +103,7 @@ class MarketOverviewServiceTest {
                 null,
                 null,
                 null,
-                Instant.now(),
+                FIXED_INSTANT,
                 false,
                 List.of(),
                 List.of(),

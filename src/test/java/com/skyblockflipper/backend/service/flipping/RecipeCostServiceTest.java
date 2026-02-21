@@ -91,7 +91,7 @@ class RecipeCostServiceTest {
         assertEquals(6_360_000L, dto.totalCraftCost());
         assertEquals(9_500_000L, dto.outputSellPrice());
         assertEquals(3_140_000L, dto.profit());
-        assertEquals(49.37D, dto.profitPct());
+        assertEquals(49.37D, dto.profitPct(), 0.001D);
     }
 
     @Test

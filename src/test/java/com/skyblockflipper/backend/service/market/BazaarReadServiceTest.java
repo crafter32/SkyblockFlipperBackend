@@ -11,6 +11,7 @@ import com.skyblockflipper.backend.hypixel.model.BazaarResponse;
 import com.skyblockflipper.backend.hypixel.model.BazaarSummaryEntry;
 import com.skyblockflipper.backend.model.market.BazaarMarketRecord;
 import com.skyblockflipper.backend.model.market.MarketSnapshot;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -26,13 +27,21 @@ import static org.mockito.Mockito.when;
 
 class BazaarReadServiceTest {
 
+    private MarketSnapshotPersistenceService snapshotService;
+    private HypixelClient hypixelClient;
+    private ItemRepository itemRepository;
+    private BazaarReadService service;
+
+    @BeforeEach
+    void setUp() {
+        snapshotService = mock(MarketSnapshotPersistenceService.class);
+        hypixelClient = mock(HypixelClient.class);
+        itemRepository = mock(ItemRepository.class);
+        service = new BazaarReadService(snapshotService, hypixelClient, itemRepository);
+    }
+
     @Test
     void getProductReadsLatestSnapshotAndNormalizesItemId() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        HypixelClient hypixelClient = mock(HypixelClient.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        BazaarReadService service = new BazaarReadService(snapshotService, hypixelClient, itemRepository);
-
         BazaarMarketRecord record = new BazaarMarketRecord("ENCHANTED_DIAMOND_BLOCK", 205000.4, 198000.1, 100, 90, 200, 180, 5, 4);
         MarketSnapshot snapshot = new MarketSnapshot(
                 Instant.parse("2026-02-21T10:00:00Z"),
@@ -44,18 +53,15 @@ class BazaarReadServiceTest {
         Optional<BazaarProductDto> result = service.getProduct(" enchanted_diamond_block ");
 
         assertTrue(result.isPresent());
+        // BazaarReadService rounds to nearest long via Math.round for API payload size/stability.
         assertEquals(205000L, result.get().buyPrice());
         assertEquals(198000L, result.get().sellPrice());
         assertEquals(100L, result.get().buyVolume());
+        assertEquals(90L, result.get().sellVolume());
     }
 
     @Test
     void getOrderBookMapsAndLimitsDepth() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        HypixelClient hypixelClient = mock(HypixelClient.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        BazaarReadService service = new BazaarReadService(snapshotService, hypixelClient, itemRepository);
-
         BazaarProduct product = new BazaarProduct(
                 "ENCHANTED_DIAMOND_BLOCK",
                 null,
@@ -80,11 +86,6 @@ class BazaarReadServiceTest {
 
     @Test
     void getOrderBookReturnsEmptyWhenBazaarResponseMissing() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        HypixelClient hypixelClient = mock(HypixelClient.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        BazaarReadService service = new BazaarReadService(snapshotService, hypixelClient, itemRepository);
-
         when(hypixelClient.fetchBazaar()).thenReturn(null);
 
         BazaarOrderBookDto result = service.getOrderBook("ANY", 10);
@@ -95,11 +96,6 @@ class BazaarReadServiceTest {
 
     @Test
     void quickFlipsFiltersSortsAndUsesDisplayNames() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        HypixelClient hypixelClient = mock(HypixelClient.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        BazaarReadService service = new BazaarReadService(snapshotService, hypixelClient, itemRepository);
-
         MarketSnapshot snapshot = new MarketSnapshot(
                 Instant.parse("2026-02-21T11:00:00Z"),
                 List.of(),

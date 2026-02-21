@@ -86,36 +86,74 @@ class ItemControllerTest {
     }
 
     @Test
-    void priceHistoryScoreHistoryQuickStatsAndFlipsDelegateToAnalyticsService() {
+    void priceHistoryDelegatesToAnalyticsService() {
         ItemReadService itemReadService = mock(ItemReadService.class);
         ItemAnalyticsService itemAnalyticsService = mock(ItemAnalyticsService.class);
         NpcShopReadService npcShopReadService = mock(NpcShopReadService.class);
         ItemController controller = new ItemController(itemReadService, itemAnalyticsService, npcShopReadService);
 
         List<PricePointDto> pricePoints = List.of(new PricePointDto(Instant.parse("2026-02-21T00:00:00Z"), 100L, 90L, 10L));
-        List<ScorePointDto> scorePoints = List.of(new ScorePointDto(Instant.parse("2026-02-21T00:00:00Z"), 70D, 20D));
-        ItemQuickStatsDto quickStatsDto = new ItemQuickStatsDto(100L, 90L, 1D, -1D, 10L, 10D, 10L, 9L, 110L, 80L);
-        Page<UnifiedFlipDto> flips = new PageImpl<>(List.of(
-                new UnifiedFlipDto(null, null, List.of(), List.of(), null, null, null, null, null, null, null, null, Instant.now(), false, List.of(), List.of(), List.of())
-        ), PageRequest.of(0, 10), 1);
-        Pageable pageable = PageRequest.of(0, 10);
-
         when(itemAnalyticsService.listPriceHistory("HYPERION", PriceHistoryRange.D7)).thenReturn(pricePoints);
-        when(itemAnalyticsService.listScoreHistory("HYPERION")).thenReturn(scorePoints);
-        when(itemAnalyticsService.quickStats("HYPERION")).thenReturn(Optional.of(quickStatsDto));
-        when(itemAnalyticsService.quickStats("MISSING")).thenReturn(Optional.empty());
-        when(itemAnalyticsService.listFlipsForItem("HYPERION", pageable)).thenReturn(flips);
 
         assertEquals(pricePoints, controller.priceHistory("HYPERION", "7d"));
-        assertEquals(scorePoints, controller.scoreHistory("HYPERION"));
-        assertEquals(HttpStatus.OK, controller.quickStats("HYPERION").getStatusCode());
-        assertEquals(HttpStatus.NOT_FOUND, controller.quickStats("MISSING").getStatusCode());
-        assertEquals(flips, controller.itemFlips("HYPERION", pageable));
-
         verify(itemAnalyticsService).listPriceHistory("HYPERION", PriceHistoryRange.D7);
+    }
+
+    @Test
+    void scoreHistoryDelegatesToAnalyticsService() {
+        ItemReadService itemReadService = mock(ItemReadService.class);
+        ItemAnalyticsService itemAnalyticsService = mock(ItemAnalyticsService.class);
+        NpcShopReadService npcShopReadService = mock(NpcShopReadService.class);
+        ItemController controller = new ItemController(itemReadService, itemAnalyticsService, npcShopReadService);
+
+        List<ScorePointDto> scorePoints = List.of(new ScorePointDto(Instant.parse("2026-02-21T00:00:00Z"), 70D, 20D));
+        when(itemAnalyticsService.listScoreHistory("HYPERION")).thenReturn(scorePoints);
+
+        assertEquals(scorePoints, controller.scoreHistory("HYPERION"));
         verify(itemAnalyticsService).listScoreHistory("HYPERION");
+    }
+
+    @Test
+    void quickStatsDelegatesToAnalyticsService() {
+        ItemReadService itemReadService = mock(ItemReadService.class);
+        ItemAnalyticsService itemAnalyticsService = mock(ItemAnalyticsService.class);
+        NpcShopReadService npcShopReadService = mock(NpcShopReadService.class);
+        ItemController controller = new ItemController(itemReadService, itemAnalyticsService, npcShopReadService);
+
+        ItemQuickStatsDto quickStatsDto = new ItemQuickStatsDto(100L, 90L, 1D, -1D, 10L, 10D, 10L, 9L, 110L, 80L);
+        when(itemAnalyticsService.quickStats("HYPERION")).thenReturn(Optional.of(quickStatsDto));
+
+        assertEquals(HttpStatus.OK, controller.quickStats("HYPERION").getStatusCode());
         verify(itemAnalyticsService).quickStats("HYPERION");
+    }
+
+    @Test
+    void quickStatsNotFoundDelegatesToAnalyticsService() {
+        ItemReadService itemReadService = mock(ItemReadService.class);
+        ItemAnalyticsService itemAnalyticsService = mock(ItemAnalyticsService.class);
+        NpcShopReadService npcShopReadService = mock(NpcShopReadService.class);
+        ItemController controller = new ItemController(itemReadService, itemAnalyticsService, npcShopReadService);
+
+        when(itemAnalyticsService.quickStats("MISSING")).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND, controller.quickStats("MISSING").getStatusCode());
         verify(itemAnalyticsService).quickStats("MISSING");
+    }
+
+    @Test
+    void itemFlipsDelegatesToAnalyticsService() {
+        ItemReadService itemReadService = mock(ItemReadService.class);
+        ItemAnalyticsService itemAnalyticsService = mock(ItemAnalyticsService.class);
+        NpcShopReadService npcShopReadService = mock(NpcShopReadService.class);
+        ItemController controller = new ItemController(itemReadService, itemAnalyticsService, npcShopReadService);
+
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<UnifiedFlipDto> flips = new PageImpl<>(List.of(
+                new UnifiedFlipDto(null, null, List.of(), List.of(), null, null, null, null, null, null, null, null, Instant.parse("2026-02-21T00:00:00Z"), false, List.of(), List.of(), List.of())
+        ), PageRequest.of(0, 10), 1);
+        when(itemAnalyticsService.listFlipsForItem("HYPERION", pageable)).thenReturn(flips);
+
+        assertEquals(flips, controller.itemFlips("HYPERION", pageable));
         verify(itemAnalyticsService).listFlipsForItem("HYPERION", pageable);
     }
 }

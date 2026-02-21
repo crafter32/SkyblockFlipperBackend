@@ -18,6 +18,7 @@ import com.skyblockflipper.backend.service.flipping.FlipCalculationContextServic
 import com.skyblockflipper.backend.service.flipping.FlipScoreFeatureSet;
 import com.skyblockflipper.backend.service.flipping.UnifiedFlipDtoMapper;
 import com.skyblockflipper.backend.service.market.MarketSnapshotPersistenceService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,15 +39,25 @@ import static org.mockito.Mockito.when;
 
 class ItemAnalyticsServiceTest {
 
+    private MarketSnapshotPersistenceService snapshotService;
+    private FlipRepository flipRepository;
+    private UnifiedFlipDtoMapper mapper;
+    private FlipCalculationContextService contextService;
+    private ItemRepository itemRepository;
+    private ItemAnalyticsService service;
+
+    @BeforeEach
+    void setUp() {
+        snapshotService = mock(MarketSnapshotPersistenceService.class);
+        flipRepository = mock(FlipRepository.class);
+        mapper = mock(UnifiedFlipDtoMapper.class);
+        contextService = mock(FlipCalculationContextService.class);
+        itemRepository = mock(ItemRepository.class);
+        service = new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository);
+    }
+
     @Test
     void listPriceHistoryBucketsSnapshotsAndResolvesAuctionAlias() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository);
-
         Instant t1 = Instant.parse("2026-02-21T10:05:00Z");
         Instant t1Newer = Instant.parse("2026-02-21T10:45:00Z");
         Instant t2 = Instant.parse("2026-02-21T11:00:00Z");
@@ -86,13 +97,6 @@ class ItemAnalyticsServiceTest {
 
     @Test
     void listPriceHistoryReturnsEmptyForInvalidInputOrMissingSnapshot() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository);
-
         when(snapshotService.latest()).thenReturn(Optional.empty());
 
         assertTrue(service.listPriceHistory(" ", PriceHistoryRange.D30).isEmpty());
@@ -101,19 +105,14 @@ class ItemAnalyticsServiceTest {
 
     @Test
     void listScoreHistoryComputesLiquidityAndRiskFromPriceHistory() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = spy(new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository));
+        ItemAnalyticsService serviceSpy = spy(service);
 
         doReturn(List.of(
                 new PricePointDto(Instant.parse("2026-02-20T00:00:00Z"), 100L, 90L, 50L),
                 new PricePointDto(Instant.parse("2026-02-21T00:00:00Z"), 110L, 100L, 100L)
-        )).when(service).listPriceHistory("HYPERION", PriceHistoryRange.D30);
+        )).when(serviceSpy).listPriceHistory("HYPERION", PriceHistoryRange.D30);
 
-        List<ScorePointDto> result = service.listScoreHistory("HYPERION");
+        List<ScorePointDto> result = serviceSpy.listScoreHistory("HYPERION");
 
         assertEquals(2, result.size());
         assertEquals(50.0, result.getFirst().liquidityScore());
@@ -124,28 +123,23 @@ class ItemAnalyticsServiceTest {
 
     @Test
     void quickStatsAggregatesHistoryValues() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = spy(new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository));
+        ItemAnalyticsService serviceSpy = spy(service);
 
         doReturn(List.of(
                 new PricePointDto(Instant.parse("2026-02-20T00:00:00Z"), 150L, 145L, 80L),
                 new PricePointDto(Instant.parse("2026-02-21T00:00:00Z"), 200L, 190L, 100L)
-        )).when(service).listPriceHistory("HYPERION", PriceHistoryRange.D30);
+        )).when(serviceSpy).listPriceHistory("HYPERION", PriceHistoryRange.D30);
         doReturn(List.of(
                 new PricePointDto(Instant.parse("2026-02-20T12:00:00Z"), 100L, 100L, 20L),
                 new PricePointDto(Instant.parse("2026-02-21T12:00:00Z"), 110L, 90L, 30L)
-        )).when(service).listPriceHistory("HYPERION", PriceHistoryRange.H24);
+        )).when(serviceSpy).listPriceHistory("HYPERION", PriceHistoryRange.H24);
         doReturn(List.of(
                 new PricePointDto(Instant.parse("2026-02-15T00:00:00Z"), 180L, 170L, 50L),
                 new PricePointDto(Instant.parse("2026-02-18T00:00:00Z"), 220L, 160L, 70L),
                 new PricePointDto(Instant.parse("2026-02-21T00:00:00Z"), 200L, 190L, 100L)
-        )).when(service).listPriceHistory("HYPERION", PriceHistoryRange.D7);
+        )).when(serviceSpy).listPriceHistory("HYPERION", PriceHistoryRange.D7);
 
-        Optional<ItemQuickStatsDto> stats = service.quickStats("HYPERION");
+        Optional<ItemQuickStatsDto> stats = serviceSpy.quickStats("HYPERION");
 
         assertTrue(stats.isPresent());
         ItemQuickStatsDto dto = stats.get();
@@ -162,13 +156,6 @@ class ItemAnalyticsServiceTest {
 
     @Test
     void listFlipsForItemFiltersByInputAndOutputAliasesAndPaginates() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository);
-
         long snapshotEpoch = Instant.parse("2026-02-21T12:00:00Z").toEpochMilli();
         when(flipRepository.findMaxSnapshotTimestampEpochMillis()).thenReturn(Optional.of(snapshotEpoch));
         when(itemRepository.findById("HYPERION"))
@@ -200,13 +187,6 @@ class ItemAnalyticsServiceTest {
 
     @Test
     void listFlipsForItemReturnsEmptyWhenItemIdOrSnapshotMissing() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        ItemAnalyticsService service = new ItemAnalyticsService(snapshotService, flipRepository, mapper, contextService, itemRepository);
-
         when(flipRepository.findMaxSnapshotTimestampEpochMillis()).thenReturn(Optional.empty());
 
         assertTrue(service.listFlipsForItem(" ", PageRequest.of(0, 10)).isEmpty());

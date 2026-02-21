@@ -57,4 +57,18 @@ class AdminAccessGuardTest {
         valid.addHeader("X-Admin-Token", "secret");
         assertDoesNotThrow(() -> guard.validate(valid));
     }
+
+    @Test
+    void validateReturnsUnauthorizedWhenTokenHeaderMissing() {
+        InstrumentationProperties properties = new InstrumentationProperties();
+        properties.getAdmin().setLocalOnly(false);
+        properties.getAdmin().setToken("secret");
+        AdminAccessGuard guard = new AdminAccessGuard(properties);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> guard.validate(request));
+        assertEquals(401, exception.getStatusCode().value());
+    }
 }

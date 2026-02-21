@@ -8,6 +8,7 @@ import com.skyblockflipper.backend.api.TrendingItemDto;
 import com.skyblockflipper.backend.api.UnifiedFlipDto;
 import com.skyblockflipper.backend.model.Flipping.Enums.FlipType;
 import com.skyblockflipper.backend.model.Flipping.Flip;
+import com.skyblockflipper.backend.model.market.AuctionMarketRecord;
 import com.skyblockflipper.backend.model.market.BazaarMarketRecord;
 import com.skyblockflipper.backend.model.market.MarketSnapshot;
 import com.skyblockflipper.backend.repository.FlipRepository;
@@ -16,7 +17,11 @@ import com.skyblockflipper.backend.service.flipping.FlipCalculationContextServic
 import com.skyblockflipper.backend.service.flipping.FlipScoreFeatureSet;
 import com.skyblockflipper.backend.service.flipping.UnifiedFlipDtoMapper;
 import com.skyblockflipper.backend.service.item.ItemMarketplaceService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,23 +33,37 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class DashboardReadServiceTest {
+
+    private static final Instant FIXED_INSTANT = Instant.parse("2026-02-21T12:00:00Z");
+
+    @Mock
+    private MarketSnapshotPersistenceService snapshotService;
+    @Mock
+    private ItemRepository itemRepository;
+    @Mock
+    private FlipRepository flipRepository;
+    @Mock
+    private UnifiedFlipDtoMapper mapper;
+    @Mock
+    private FlipCalculationContextService contextService;
+    @Mock
+    private ItemMarketplaceService marketplaceService;
+
+    private DashboardReadService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new DashboardReadService(
+                snapshotService, itemRepository, flipRepository, mapper, contextService, marketplaceService
+        );
+    }
 
     @Test
     void overviewReturnsUnknownWhenNoSnapshotExists() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemMarketplaceService marketplaceService = mock(ItemMarketplaceService.class);
-        DashboardReadService service = new DashboardReadService(
-                snapshotService, itemRepository, flipRepository, mapper, contextService, marketplaceService
-        );
-
         when(itemRepository.count()).thenReturn(1247L);
         when(snapshotService.latest()).thenReturn(Optional.empty());
 
@@ -57,22 +76,12 @@ class DashboardReadServiceTest {
 
     @Test
     void overviewReturnsTopFlipAndBullishTrendFromLatestSnapshot() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemMarketplaceService marketplaceService = mock(ItemMarketplaceService.class);
-        DashboardReadService service = new DashboardReadService(
-                snapshotService, itemRepository, flipRepository, mapper, contextService, marketplaceService
-        );
-
-        Instant ts = Instant.parse("2026-02-21T12:00:00Z");
+        Instant ts = FIXED_INSTANT;
         MarketSnapshot snapshot = new MarketSnapshot(
                 ts,
                 List.of(
-                        new com.skyblockflipper.backend.model.market.AuctionMarketRecord("a", "H", "W", "L", 1L, 0L, 0L, 0L, false),
-                        new com.skyblockflipper.backend.model.market.AuctionMarketRecord("b", "T", "W", "L", 1L, 0L, 0L, 0L, false)
+                        new AuctionMarketRecord("a", "H", "W", "L", 1L, 0L, 0L, 0L, false),
+                        new AuctionMarketRecord("b", "T", "W", "L", 1L, 0L, 0L, 0L, false)
                 ),
                 Map.of(
                         "A", new BazaarMarketRecord("A", 100, 90, 10, 10, 0, 0, 1, 1),
@@ -106,17 +115,7 @@ class DashboardReadServiceTest {
 
     @Test
     void trendingComputesChangesSortsAndRespectsLimit() {
-        MarketSnapshotPersistenceService snapshotService = mock(MarketSnapshotPersistenceService.class);
-        ItemRepository itemRepository = mock(ItemRepository.class);
-        FlipRepository flipRepository = mock(FlipRepository.class);
-        UnifiedFlipDtoMapper mapper = mock(UnifiedFlipDtoMapper.class);
-        FlipCalculationContextService contextService = mock(FlipCalculationContextService.class);
-        ItemMarketplaceService marketplaceService = mock(ItemMarketplaceService.class);
-        DashboardReadService service = new DashboardReadService(
-                snapshotService, itemRepository, flipRepository, mapper, contextService, marketplaceService
-        );
-
-        Instant end = Instant.parse("2026-02-21T12:00:00Z");
+        Instant end = FIXED_INSTANT;
         MarketSnapshot first = new MarketSnapshot(
                 end.minusSeconds(24L * 60L * 60L),
                 List.of(),
@@ -169,7 +168,7 @@ class DashboardReadServiceTest {
                 null,
                 null,
                 null,
-                Instant.now(),
+                FIXED_INSTANT,
                 false,
                 List.of(),
                 List.of(),
