@@ -200,6 +200,11 @@ public class FlipReadService {
     }
 
     public Page<FlipGoodnessDto> topGoodnessFlips(FlipType flipType, Instant snapshotTimestamp, int page) {
+        int safePage = Math.max(0, page);
+        return topGoodnessFlips(flipType, snapshotTimestamp, PageRequest.of(safePage, GOODNESS_PAGE_SIZE));
+    }
+
+    public Page<FlipGoodnessDto> topGoodnessFlips(FlipType flipType, Instant snapshotTimestamp, Pageable pageable) {
         Long snapshotEpochMillis = resolveSnapshotEpochMillis(snapshotTimestamp);
         FlipCalculationContext context = snapshotEpochMillis == null
                 ? flipCalculationContextService.loadCurrentContext()
@@ -218,8 +223,7 @@ public class FlipReadService {
                         .thenComparing(entry -> entry.flip().id() == null ? "" : entry.flip().id().toString()))
                 .toList();
 
-        int safePage = Math.max(0, page);
-        return paginateGoodness(ranked, PageRequest.of(safePage, GOODNESS_PAGE_SIZE));
+        return paginateGoodness(ranked, pageable);
     }
 
     public FlipTypesDto listSupportedFlipTypes() {
@@ -412,7 +416,7 @@ public class FlipReadService {
         if (pageable == null || pageable.isUnpaged()) {
             return new PageImpl<>(dtos);
         }
-        int fromIndex = (int) Math.min((long) pageable.getPageNumber() * pageable.getPageSize(), dtos.size());
+        int fromIndex = (int) Math.min(pageable.getOffset(), dtos.size());
         int toIndex = Math.min(fromIndex + pageable.getPageSize(), dtos.size());
         List<UnifiedFlipDto> pageContent = dtos.subList(fromIndex, toIndex);
         return new PageImpl<>(pageContent, pageable, dtos.size());
@@ -422,7 +426,7 @@ public class FlipReadService {
         if (pageable == null || pageable.isUnpaged()) {
             return new PageImpl<>(dtos);
         }
-        int fromIndex = (int) Math.min((long) pageable.getPageNumber() * pageable.getPageSize(), dtos.size());
+        int fromIndex = (int) Math.min(pageable.getOffset(), dtos.size());
         int toIndex = Math.min(fromIndex + pageable.getPageSize(), dtos.size());
         List<FlipGoodnessDto> pageContent = dtos.subList(fromIndex, toIndex);
         return new PageImpl<>(pageContent, pageable, dtos.size());
